@@ -8,9 +8,18 @@ Description: >
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
-    Timeout: 3
+    Timeout: 15
+    Environment:
+        Variables:
+          APPLICATION_PUBLIC_KEY: 'ac717bd98d442a772502bafe4daf5ae81cf80faa132a4ad180b8d914b29b4c28'
+          S3_BUCKET: !Ref SamTempBucket
+          OBJECT_KEY: 'tmp.json'
 
 Resources:
+  SamTempBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: sam-temp-bucket-1p78xop6
   InteractionFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
@@ -19,15 +28,42 @@ Resources:
       Runtime: python3.13
       Architectures:
         - x86_64
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref SamTempBucket
+        - S3WritePolicy:
+            BucketName: !Ref SamTempBucket
       Events:
         Interaction:
           Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
           Properties:
             Path: /interactions
             Method: post
-      Environment:
-        Variables:
-          APPLICATION_PUBLIC_KEY: 'ac717bd98d442a772502bafe4daf5ae81cf80faa132a4ad180b8d914b29b4c28'
+  FollowUpFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: src/
+      Handler: follow_up.lambda_handler
+      Runtime: python3.13
+      Architectures:
+        - x86_64
+      Policies:
+        - S3ReadPolicy:
+            BucketName: !Ref SamTempBucket
+        - S3WritePolicy:
+            BucketName: !Ref SamTempBucket
+      # Events:
+      #   EC2StateChange:
+      #     Type: EventBridgeRule
+      #     Properties:
+      #       Pattern:
+      #         source: 
+      #           - "aws.ec2"
+      #         detail-type:
+      #           - "EC2 Instance State-change Notification"
+      #         detail:
+      #           state:
+      #             - "running"
 
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
@@ -42,3 +78,13 @@ Outputs:
   InteractionFunctionIamRole:
     Description: "Implicit IAM Role created for Interaction function"
     Value: !GetAtt InteractionFunctionRole.Arn
+  FollowUpFunction:
+    Description: "Follow Up Lambda Function ARN"
+    Value: !GetAtt FollowUpFunction.Arn
+  FollowUpFunctionIamRole:
+    Description: "Implicit IAM Role created for Follow Up function"
+    Value: !GetAtt FollowUpFunctionRole.Arn
+  SamTempBucket:
+    Description: "Sam Temp Bucket ARN"
+    Value: !GetAtt SamTempBucket.Arn
+  

@@ -2,3 +2,4 @@ requests
 aws-wsgi
 flask
 discord-interactions
+boto3
