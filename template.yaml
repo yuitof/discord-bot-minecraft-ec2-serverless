@@ -11,15 +11,13 @@ Globals:
     Timeout: 15
     Environment:
         Variables:
-          APPLICATION_PUBLIC_KEY: 'ac717bd98d442a772502bafe4daf5ae81cf80faa132a4ad180b8d914b29b4c28'
+          APPLICATION_PUBLIC_KEY: ac717bd98d442a772502bafe4daf5ae81cf80faa132a4ad180b8d914b29b4c28
           S3_BUCKET: !Ref SamTempBucket
-          OBJECT_KEY: 'tmp.json'
+          OBJECT_KEY: tmp.json
+          INSTANCE_ID: !Ref Ec2Instance
+          REGION: us-west-1
 
 Resources:
-  SamTempBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: sam-temp-bucket-1p78xop6
   InteractionFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
@@ -29,10 +27,16 @@ Resources:
       Architectures:
         - x86_64
       Policies:
-        - S3ReadPolicy:
-            BucketName: !Ref SamTempBucket
-        - S3WritePolicy:
-            BucketName: !Ref SamTempBucket
+        - Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - ec2:StopInstances
+              - ec2:StartInstances
+            Resource: "*"
+
+
       Events:
         Interaction:
           Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -48,22 +52,53 @@ Resources:
       Architectures:
         - x86_64
       Policies:
-        - S3ReadPolicy:
-            BucketName: !Ref SamTempBucket
-        - S3WritePolicy:
-            BucketName: !Ref SamTempBucket
-      # Events:
-      #   EC2StateChange:
-      #     Type: EventBridgeRule
-      #     Properties:
-      #       Pattern:
-      #         source: 
-      #           - "aws.ec2"
-      #         detail-type:
-      #           - "EC2 Instance State-change Notification"
-      #         detail:
-      #           state:
-      #             - "running"
+        - Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - ec2:StopInstances
+              - ec2:StartInstances
+            Resource: "*"
+      Events:
+        EC2StateChange:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source: 
+                - "aws.ec2"
+              detail-type:
+                - "EC2 Instance State-change Notification"
+              detail:
+                state:
+                  - "running"
+  SamTempBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: sam-temp-bucket-1p78xop6
+  Ec2Instance:
+    Type : AWS::EC2::Instance
+    Properties:
+      ImageId: ami-00142eb1747a493d9
+      InstanceType: t2.micro
+      SecurityGroupIds:
+        - !Ref InstanceSecurityGroup
+      Tags:
+        - Key: Name
+          Value: discord-bot-minecraft-ec2-serverless
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access via port 22
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: discord-bot-minecraft-ec2-serverless
+      
 
 Outputs:
   # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
@@ -87,4 +122,9 @@ Outputs:
   SamTempBucket:
     Description: "Sam Temp Bucket ARN"
     Value: !GetAtt SamTempBucket.Arn
-  
+  Ec2Instance:
+    Description: "Ec2 Instance ARN"
+    Value: !Ref Ec2Instance
+  InstanceSecurityGroup:
+    Description: "Instance Security Group ARN"
+    Value: !Ref InstanceSecurityGroup
