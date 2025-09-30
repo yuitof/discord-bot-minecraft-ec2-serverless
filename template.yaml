@@ -16,6 +16,7 @@ Globals:
           OBJECT_KEY: tmp.json
           INSTANCE_ID: !Ref Ec2Instance
           REGION: us-west-1
+          # INVOKED_LAMBDA_FUNCTION: !GetAtt InvokedLambdaFunction.Arn
 
 Resources:
   InteractionFunction:
@@ -30,13 +31,12 @@ Resources:
         - Statement:
           - Effect: Allow
             Action:
-              - s3:GetObject
-              - s3:PutObject
-              - ec2:StopInstances
-              - ec2:StartInstances
+              - lambda:InvokeFunction
+              # - s3:GetObject
+              # - s3:PutObject
+              # - ec2:StopInstances
+              # - ec2:StartInstances
             Resource: "*"
-
-
       Events:
         Interaction:
           Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
@@ -72,6 +72,23 @@ Resources:
               detail:
                 state:
                   - "running"
+  InvokedLambdaFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: src/
+      Handler: invoked.lambda_handler
+      Runtime: python3.13
+      Architectures:
+        - x86_64
+      Policies:
+        - Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - ec2:StopInstances
+              - ec2:StartInstances
+            Resource: "*"
   SamTempBucket:
     Type: AWS::S3::Bucket
     Properties:

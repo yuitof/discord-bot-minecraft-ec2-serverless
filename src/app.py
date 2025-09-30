@@ -9,9 +9,6 @@ from discord_interactions import verify_key_decorator, InteractionType, Interact
 import time
 
 PUBLIC_KEY = os.environ.get('APPLICATION_PUBLIC_KEY')
-S3_BUCKET = os.environ.get('S3_BUCKET')
-OBJECT_KEY = os.environ.get('OBJECT_KEY')
-INSTANCE_ID = os.environ.get('INSTANCE_ID')
 # REGION = os.environ.get("REGION")
 
 app = Flask(__name__)
@@ -30,25 +27,30 @@ def interactions():
                 }
             })
         if data['data']['name'] == 'test':
-            s3_client = boto3.client('s3')
-            try:
-                response = s3_client.put_object(Bucket=S3_BUCKET, Key=OBJECT_KEY, Body=json.dumps(data))
-                print('response from s3', response)
-            except ClientError as e:
-                print('error:', e)
-            
-            ec2_client = boto3.client('ec2')
-            try:
-                response = ec2_client.start_instances(
-                    InstanceIds=[ INSTANCE_ID ]
-                )
-                print('response from ec2:', response)
-            except ClientError as e:
-                print('error:', e)
+            start_time = time.time()
+            lambda_client = boto3.client('lambda')
+            end_time = time.time()
+            print('time:', end_time - start_time)
+
+            start_time = time.time()
+            lambda_client.invoke(
+                FunctionName='discord-bot-minecraft-ec2-se-InvokedLambdaFunction-nrEwHfk9Xiwn',
+                InvocationType='Event',
+                Payload=json.dumps(data)
+            )
+            end_time = time.time()
+            print('time:', end_time - start_time)
 
             return jsonify({
                 'type': InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
             })
+            # else:
+                # return jsonify({
+                #     'type': InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+                #     'data': {
+                #         'content': 'Instance is running'
+                #     }
+                # })
         
         print(f'unknown command: {data['name']}')
         abort(401, 'unknown command')

@@ -19,3 +19,4 @@ def lambda_handler(event, context):
         requests.patch(url, json=body)
     except ClientError as e:
         print('error:', e)
+    return None
