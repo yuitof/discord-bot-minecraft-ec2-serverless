@@ -9,10 +9,13 @@ from discord_interactions import verify_key_decorator, InteractionType, Interact
 import time
 
 PUBLIC_KEY = os.environ.get('APPLICATION_PUBLIC_KEY')
-# REGION = os.environ.get("REGION")
+S3_BUCKET = os.environ.get('S3_BUCKET')
+OBJECT_KEY = os.environ.get('OBJECT_KEY')
+INSTANCE_ID = os.environ.get('INSTANCE_ID')
 
 start_time = time.time()
-lambda_client = boto3.client('lambda')
+ec2_client = boto3.client('ec2')
+s3_client = boto3.client('s3')
 end_time = time.time()
 print('time:', end_time - start_time)
 
@@ -32,31 +35,24 @@ def interactions():
                 }
             })
         if data['data']['name'] == 'test':
-
-            start_time = time.time()
-            lambda_client.invoke(
-                FunctionName='discord-bot-minecraft-ec2-serverless-EventFunction-PEgLs8UrEwSj',
-                InvocationType='Event',
-                Payload=json.dumps(data)
-            )
-            end_time = time.time()
-            print('time:', end_time - start_time)
-
-            return jsonify({
-                'type': InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
-            })
-            # else:
-                # return jsonify({
-                #     'type': InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-                #     'data': {
-                #         'content': 'Instance is running'
-                #     }
-                # })
+            try:
+                response_s3 = s3_client.put_object(Bucket=S3_BUCKET, Key=OBJECT_KEY, Body=json.dumps(data))
+                print('response from s3', response_s3)
+                response_ec2 = ec2_client.start_instances(
+                    InstanceIds=[ INSTANCE_ID ]
+                )
+                print('response from ec2:', response_ec2)
+                return jsonify({
+                    'type': InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
+                })
+            except ClientError as e:
+                print('error:', e)
+                abort(401, 'failed to start instance')
         
-        print(f'unknown command: {data['name']}')
+        print(f'unknown command: {data['data']['name']}')
         abort(401, 'unknown command')
 
-    print('unknown interaction type', type)
+    print('unknown interaction type', data['type'])
     abort(401, 'unknown interaction type')
 
 def lambda_handler(event, context):

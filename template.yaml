@@ -26,26 +26,7 @@ Resources:
       Runtime: python3.13
       Architectures:
         - x86_64
-      Policies:
-        - Statement:
-          - Effect: Allow
-            Action:
-              - lambda:InvokeFunction
-            Resource: "*"
-      Events:
-        Interaction:
-          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
-          Properties:
-            Path: /interactions
-            Method: post
-  EventFunction:
-    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
-    Properties:
-      CodeUri: src/
-      Handler: event.lambda_handler
-      Runtime: python3.13
-      Architectures:
-        - x86_64
+      MemorySize: 1024
       Policies:
         - Statement:
           - Effect: Allow
@@ -55,6 +36,12 @@ Resources:
               - ec2:StopInstances
               - ec2:StartInstances
             Resource: "*"
+      Events:
+        Interaction:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /interactions
+            Method: post
   FollowUpFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
@@ -69,8 +56,6 @@ Resources:
             Action:
               - s3:GetObject
               - s3:PutObject
-              - ec2:StopInstances
-              - ec2:StartInstances
             Resource: "*"
       Events:
         EC2StateChange:
@@ -125,12 +110,6 @@ Outputs:
   InteractionFunctionIamRole:
     Description: "Implicit IAM Role created for Interaction function"
     Value: !GetAtt InteractionFunctionRole.Arn
-  EventFunction:
-    Description: "Event Up Lambda Function ARN"
-    Value: !GetAtt EventFunction.Arn
-  EventFunctionIamRole:
-    Description: "Implicit IAM Role created for Event function"
-    Value: !GetAtt EventFunctionRole.Arn
   FollowUpFunction:
     Description: "Follow Up Lambda Function ARN"
     Value: !GetAtt FollowUpFunction.Arn
