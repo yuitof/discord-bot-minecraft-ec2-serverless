@@ -16,7 +16,6 @@ Globals:
           OBJECT_KEY: tmp.json
           INSTANCE_ID: !Ref Ec2Instance
           REGION: us-west-1
-          # INVOKED_LAMBDA_FUNCTION: !GetAtt InvokedLambdaFunction.Arn
 
 Resources:
   InteractionFunction:
@@ -32,10 +31,6 @@ Resources:
           - Effect: Allow
             Action:
               - lambda:InvokeFunction
-              # - s3:GetObject
-              # - s3:PutObject
-              # - ec2:StopInstances
-              # - ec2:StartInstances
             Resource: "*"
       Events:
         Interaction:
@@ -43,6 +38,23 @@ Resources:
           Properties:
             Path: /interactions
             Method: post
+  EventFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: src/
+      Handler: event.lambda_handler
+      Runtime: python3.13
+      Architectures:
+        - x86_64
+      Policies:
+        - Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - ec2:StopInstances
+              - ec2:StartInstances
+            Resource: "*"
   FollowUpFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
@@ -72,23 +84,6 @@ Resources:
               detail:
                 state:
                   - "running"
-  InvokedLambdaFunction:
-    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
-    Properties:
-      CodeUri: src/
-      Handler: invoked.lambda_handler
-      Runtime: python3.13
-      Architectures:
-        - x86_64
-      Policies:
-        - Statement:
-          - Effect: Allow
-            Action:
-              - s3:GetObject
-              - s3:PutObject
-              - ec2:StopInstances
-              - ec2:StartInstances
-            Resource: "*"
   SamTempBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -130,6 +125,12 @@ Outputs:
   InteractionFunctionIamRole:
     Description: "Implicit IAM Role created for Interaction function"
     Value: !GetAtt InteractionFunctionRole.Arn
+  EventFunction:
+    Description: "Event Up Lambda Function ARN"
+    Value: !GetAtt EventFunction.Arn
+  EventFunctionIamRole:
+    Description: "Implicit IAM Role created for Event function"
+    Value: !GetAtt EventFunctionRole.Arn
   FollowUpFunction:
     Description: "Follow Up Lambda Function ARN"
     Value: !GetAtt FollowUpFunction.Arn

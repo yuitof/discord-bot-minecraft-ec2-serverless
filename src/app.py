@@ -11,6 +11,11 @@ import time
 PUBLIC_KEY = os.environ.get('APPLICATION_PUBLIC_KEY')
 # REGION = os.environ.get("REGION")
 
+start_time = time.time()
+lambda_client = boto3.client('lambda')
+end_time = time.time()
+print('time:', end_time - start_time)
+
 app = Flask(__name__)
 
 @app.route('/interactions', methods=['POST'])
@@ -27,14 +32,10 @@ def interactions():
                 }
             })
         if data['data']['name'] == 'test':
-            start_time = time.time()
-            lambda_client = boto3.client('lambda')
-            end_time = time.time()
-            print('time:', end_time - start_time)
 
             start_time = time.time()
             lambda_client.invoke(
-                FunctionName='discord-bot-minecraft-ec2-se-InvokedLambdaFunction-nrEwHfk9Xiwn',
+                FunctionName='discord-bot-minecraft-ec2-serverless-EventFunction-PEgLs8UrEwSj',
                 InvocationType='Event',
                 Payload=json.dumps(data)
             )
