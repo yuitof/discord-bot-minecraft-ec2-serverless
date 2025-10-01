@@ -35,6 +35,7 @@ Resources:
               - s3:PutObject
               - ec2:StopInstances
               - ec2:StartInstances
+              - ec2:DescribeInstanceStatus
             Resource: "*"
       Events:
         Interaction:
@@ -69,6 +70,7 @@ Resources:
               detail:
                 state:
                   - "running"
+                  - "stopped"
   SamTempBucket:
     Type: AWS::S3::Bucket
     Properties:

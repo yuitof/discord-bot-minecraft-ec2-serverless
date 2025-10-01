@@ -24,30 +24,60 @@ app = Flask(__name__)
 @app.route('/interactions', methods=['POST'])
 @verify_key_decorator(PUBLIC_KEY)
 def interactions():
-    # print(request.json)
     data = request.json
     if data['type'] == InteractionType.APPLICATION_COMMAND:
-        if data['data']['name'] == 'foo':
+        ec2_status = ec2_client.describe_instance_status(
+                        InstanceIds=[ INSTANCE_ID ],
+                        IncludeAllInstances=True
+                    )
+        instance_state = ec2_status['InstanceStatuses'][0]['InstanceState']['Name']
+        print(instance_state)
+
+        if data['data']['name'] == 'status':
             return jsonify({
                 'type': InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
                 'data': {
-                    'content': 'Hello world'
+                    'content': f'Instance\'s current status is {instance_state}'
                 }
             })
-        if data['data']['name'] == 'test':
-            try:
-                response_s3 = s3_client.put_object(Bucket=S3_BUCKET, Key=OBJECT_KEY, Body=json.dumps(data))
-                print('response from s3', response_s3)
-                response_ec2 = ec2_client.start_instances(
-                    InstanceIds=[ INSTANCE_ID ]
-                )
-                print('response from ec2:', response_ec2)
-                return jsonify({
-                    'type': InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
-                })
-            except ClientError as e:
-                print('error:', e)
-                abort(401, 'failed to start instance')
+        
+        if instance_state in ['running', 'stopped']:
+            if data['data']['name'] == 'start':
+                try:
+                    response_s3 = s3_client.put_object(Bucket=S3_BUCKET, Key=OBJECT_KEY, Body=json.dumps(data))
+                    print('response from s3', response_s3)
+                    response_ec2 = ec2_client.start_instances(
+                        InstanceIds=[ INSTANCE_ID ]
+                    )
+                    print('response from ec2:', response_ec2)
+                    return jsonify({
+                        'type': InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
+                    })
+                except ClientError as e:
+                    print('error:', e)
+                    abort(401, 'failed to start instance')
+
+            if data['data']['name'] == 'stop':
+                try:
+                    response_s3 = s3_client.put_object(Bucket=S3_BUCKET, Key=OBJECT_KEY, Body=json.dumps(data))
+                    print('response from s3', response_s3)
+                    response_ec2 = ec2_client.stop_instances(
+                        InstanceIds=[ INSTANCE_ID ]
+                    )
+                    print('response from ec2:', response_ec2)
+                    return jsonify({
+                        'type': InteractionResponseType.DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE,
+                    })
+                except ClientError as e:
+                    print('error:', e)
+                    abort(401, 'failed to start instance')
+        else:
+            return jsonify({
+                'type': InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+                'data': {
+                    'content': f'Instance is {instance_state}'
+                }
+            })
         
         print(f'unknown command: {data['data']['name']}')
         abort(401, 'unknown command')
