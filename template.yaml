@@ -57,6 +57,7 @@ Resources:
             Action:
               - s3:GetObject
               - s3:PutObject
+              - ec2:DescribeInstances
             Resource: "*"
       Events:
         EC2StateChange:

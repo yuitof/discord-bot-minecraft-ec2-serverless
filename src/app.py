@@ -9,9 +9,9 @@ from discord_interactions import verify_key_decorator, InteractionType, Interact
 import time
 
 PUBLIC_KEY = os.environ.get('APPLICATION_PUBLIC_KEY')
+INSTANCE_ID = os.environ.get('INSTANCE_ID')
 S3_BUCKET = os.environ.get('S3_BUCKET')
 OBJECT_KEY = os.environ.get('OBJECT_KEY')
-INSTANCE_ID = os.environ.get('INSTANCE_ID')
 
 start_time = time.time()
 ec2_client = boto3.client('ec2')
