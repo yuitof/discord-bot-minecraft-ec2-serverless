@@ -80,12 +80,27 @@ Resources:
     Type : AWS::EC2::Instance
     Properties:
       ImageId: ami-00142eb1747a493d9
-      InstanceType: t2.micro
+      InstanceType: t2.small
       SecurityGroupIds:
         - !Ref InstanceSecurityGroup
       Tags:
         - Key: Name
           Value: discord-bot-minecraft-ec2-serverless
+      UserData:
+        Fn::Base64: !Sub |
+             #!/bin/bash
+             sudo dnf update -y
+             sudo dnf remove -y docker docker-client docker-client-latest docker-common docker-latest docker-latest-logrotate docker-logrotate docker-engine
+             sudo dnf -y install dnf-plugins-core
+             sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+             sudo sed -i 's/$releasever/9/g' /etc/yum.repos.d/docker-ce.repo
+             sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+             sudo systemctl enable --now docker
+             sudo echo $'services:\n  mc:\n    image: itzg/minecraft-server\n    tty: true\n    stdin_open: true\n    ports:\n      - "25565:25565"\n    environment:\n      EULA: "TRUE"\n    volumes:\n      - ./data:/data' > './docker-compose.yml'
+             sudo echo $'sudo docker compose -p minecraft-server up -d' > ./docker-compose.sh
+             sudo echo $'[Unit]\nDescription=Docker Compose\n\n[Service]\nExecStart=/docker-compose.sh\n\n[Install]\nWantedBy=multi-user.target' > ./docker-compose.service
+             sudo systemctl enable ./docker-compose.service
+            #  sudo curl -O 'https://raw.githubusercontent.com/yuitof/discord-bot-minecraft-ec2-serverless/refs/heads/main/docker-compose.yml'
   InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
@@ -94,6 +109,14 @@ Resources:
         - IpProtocol: tcp
           FromPort: 22
           ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 25565
+          ToPort: 25565
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: udp
+          FromPort: 25565
+          ToPort: 25565
           CidrIp: 0.0.0.0/0
       Tags:
         - Key: Name
