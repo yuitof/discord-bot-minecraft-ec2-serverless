@@ -37,7 +37,7 @@ def interactions():
             return jsonify({
                 'type': InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
                 'data': {
-                    'content': f'Instance\'s current status is {instance_state}'
+                    'content': f'Instance is {instance_state}'
                 }
             })
         
@@ -70,7 +70,7 @@ def interactions():
                     })
                 except ClientError as e:
                     print('error:', e)
-                    abort(401, 'failed to start instance')
+                    abort(401, 'failed to stop instance')
         else:
             return jsonify({
                 'type': InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
