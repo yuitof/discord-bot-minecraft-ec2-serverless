@@ -33,7 +33,7 @@ def interactions():
         instance_state = ec2_status['InstanceStatuses'][0]['InstanceState']['Name']
         print(instance_state)
 
-        if data['data']['name'] in ['status', 'start', 'status']:
+        if data['data']['name'] in ['status', 'start', 'stop']:
 
             if data['data']['name'] == 'status':
                 return jsonify({
