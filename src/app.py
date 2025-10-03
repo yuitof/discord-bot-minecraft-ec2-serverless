@@ -33,15 +33,16 @@ def interactions():
         instance_state = ec2_status['InstanceStatuses'][0]['InstanceState']['Name']
         print(instance_state)
 
-        if data['data']['name'] == 'status':
-            return jsonify({
-                'type': InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
-                'data': {
-                    'content': f'Instance is {instance_state}'
-                }
-            })
-        
-        if instance_state in ['running', 'stopped']:
+        if data['data']['name'] in ['status', 'start', 'status']:
+
+            if data['data']['name'] == 'status':
+                return jsonify({
+                    'type': InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
+                    'data': {
+                        'content': f'Instance is {instance_state}'
+                    }
+                })
+
             if data['data']['name'] == 'start' and instance_state == 'stopped':
                 try:
                     response_s3 = s3_client.put_object(Bucket=S3_BUCKET, Key=OBJECT_KEY, Body=json.dumps(data))
@@ -71,7 +72,7 @@ def interactions():
                 except ClientError as e:
                     print('error:', e)
                     abort(401, 'failed to stop instance')
-        else:
+        
             return jsonify({
                 'type': InteractionResponseType.CHANNEL_MESSAGE_WITH_SOURCE,
                 'data': {
