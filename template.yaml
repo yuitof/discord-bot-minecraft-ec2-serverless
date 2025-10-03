@@ -57,6 +57,7 @@ Resources:
             Action:
               - s3:GetObject
               - s3:PutObject
+              - s3:DeleteObject
               - ec2:DescribeInstances
             Resource: "*"
       Events:
@@ -96,10 +97,9 @@ Resources:
              sudo sed -i 's/$releasever/9/g' /etc/yum.repos.d/docker-ce.repo
              sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
              sudo systemctl enable --now docker
-             sudo echo $'services:\n  mc:\n    image: itzg/minecraft-server\n    tty: true\n    stdin_open: true\n    ports:\n      - "25565:25565"\n    environment:\n      EULA: "TRUE"\n    volumes:\n      - ./data:/data' > './docker-compose.yml'
-             sudo echo $'sudo docker compose -p minecraft-server up -d' > ./docker-compose.sh
-             sudo echo $'[Unit]\nDescription=Docker Compose\n\n[Service]\nExecStart=/docker-compose.sh\n\n[Install]\nWantedBy=multi-user.target' > ./docker-compose.service
-             sudo systemctl enable ./docker-compose.service
+             sudo mkdir /mc && sudo cd /mc
+             sudo echo $'services:\n  mc:\n    image: itzg/minecraft-server\n    tty: true\n    stdin_open: true\n    ports:\n      - "25565:25565"\n    environment:\n      EULA: "TRUE"\n    volumes:\n      - ./data:/data\n    restart: always' > './docker-compose.yml'
+             sudo docker compose -p minecraft-server up -d
             #  sudo curl -O 'https://raw.githubusercontent.com/yuitof/discord-bot-minecraft-ec2-serverless/refs/heads/main/docker-compose.yml'
   InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup

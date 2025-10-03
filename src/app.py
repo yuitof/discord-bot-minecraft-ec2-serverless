@@ -42,7 +42,7 @@ def interactions():
             })
         
         if instance_state in ['running', 'stopped']:
-            if data['data']['name'] == 'start':
+            if data['data']['name'] == 'start' and instance_state == 'stopped':
                 try:
                     response_s3 = s3_client.put_object(Bucket=S3_BUCKET, Key=OBJECT_KEY, Body=json.dumps(data))
                     print('response from s3', response_s3)
@@ -57,7 +57,7 @@ def interactions():
                     print('error:', e)
                     abort(401, 'failed to start instance')
 
-            if data['data']['name'] == 'stop':
+            if data['data']['name'] == 'stop' and instance_state == 'running':
                 try:
                     response_s3 = s3_client.put_object(Bucket=S3_BUCKET, Key=OBJECT_KEY, Body=json.dumps(data))
                     print('response from s3', response_s3)

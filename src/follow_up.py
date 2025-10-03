@@ -36,4 +36,7 @@ def lambda_handler(event, context):
             requests.patch(url, json=body)
     except ClientError as e:
         print('error:', e)
+    finally:
+        response = s3_client.delete_object(Bucket=S3_BUCKET, Key=OBJECT_KEY)
+        print(response)
     return None
