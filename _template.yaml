@@ -1,0 +1,2403 @@
+hellomplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  discord-bot-minecraft-ec2-serverless
+
+  Sample SAM Template for discord-bot-minecraft-ec2-serverless
+
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 15
+    Environment:
+        Variables:
+          APPLICATION_PUBLIC_KEY:
+          S3_BUCKET: !Ref SamTempBucket
+          OBJECT_KEY: tmp.json
+          INSTANCE_ID: !Ref Ec2Instance
+          REGION: us-west-1
+
+Resources:
+  InteractionFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: src/
+      Handler: app.lambda_handler
+      Runtime: python3.13
+      Architectures:
+        - x86_64
+      MemorySize: 1024
+      Policies:
+        - Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - ec2:StopInstances
+              - ec2:StartInstances
+              - ec2:DescribeInstanceStatus
+            Resource: "*"
+      Events:
+        Interaction:
+          Type: Api # More info about API Event Source: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#api
+          Properties:
+            Path: /interactions
+            Method: post
+  FollowUpFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: src/
+      Handler: follow_up.lambda_handler
+      Runtime: python3.13
+      Architectures:
+        - x86_64
+      Policies:
+        - Statement:
+          - Effect: Allow
+            Action:
+              - s3:GetObject
+              - s3:PutObject
+              - s3:DeleteObject
+              - ec2:DescribeInstances
+            Resource: "*"
+      Events:
+        EC2StateChange:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              source: 
+                - "aws.ec2"
+              detail-type:
+                - "EC2 Instance State-change Notification"
+              detail:
+                state:
+                  - "running"
+                  - "stopped"
+  SamTempBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName:
+  Ec2Instance:
+    Type : AWS::EC2::Instance
+    Properties:
+      ImageId: ami-00142eb1747a493d9
+      InstanceType: t2.small
+      SecurityGroupIds:
+        - !Ref InstanceSecurityGroup
+      Tags:
+        - Key: Name
+          Value: discord-bot-minecraft-ec2-serverless
+      UserData:
+        Fn::Base64: !Sub |
+             #!/bin/bash
+             sudo dnf update -y
+             sudo dnf remove -y docker docker-client docker-client-latest docker-common docker-latest docker-latest-logrotate docker-logrotate docker-engine
+             sudo dnf -y install dnf-plugins-core
+             sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+             sudo sed -i 's/$releasever/9/g' /etc/yum.repos.d/docker-ce.repo
+             sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+             sudo systemctl enable --now docker
+             sudo mkdir /mc && sudo cd /mc
+             sudo echo $'services:\n  mc:\n    image: itzg/minecraft-server\n    tty: true\n    stdin_open: true\n    ports:\n      - "25565:25565"\n    environment:\n      EULA: "TRUE"\n    volumes:\n      - ./data:/data\n    restart: always' > './docker-compose.yml'
+             sudo docker compose -p minecraft-server up -d
+  InstanceSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable SSH access via port 22
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 22
+          ToPort: 22
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 25565
+          ToPort: 25565
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: udp
+          FromPort: 25565
+          ToPort: 25565
+          CidrIp: 0.0.0.0/0
+      Tags:
+        - Key: Name
+          Value: discord-bot-minecraft-ec2-serverless
+      
+
+Outputs:
+  # ServerlessRestApi is an implicit API created out of Events key under Serverless::Function
+  # Find out more about other implicit resources you can reference within SAM
+  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#api
+  InteractionApi:
+    Description: "API Gateway endpoint URL for Prod stage for Interaction function"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/interactions"
+  InteractionFunction:
+    Description: "Interaction Lambda Function ARN"
+    Value: !GetAtt InteractionFunction.Arn
+  InteractionFunctionIamRole:
+    Description: "Implicit IAM Role created for Interaction function"
+    Value: !GetAtt InteractionFunctionRole.Arn
+  FollowUpFunction:
+    Description: "Follow Up Lambda Function ARN"
+    Value: !GetAtt FollowUpFunction.Arn
+  FollowUpFunctionIamRole:
+    Description: "Implicit IAM Role created for Follow Up function"
+    Value: !GetAtt FollowUpFunctionRole.Arn
+  SamTempBucket:
+    Description: "Sam Temp Bucket ARN"
+    Value: !GetAtt SamTempBucket.Arn
+  Ec2Instance:
+    Description: "Ec2 Instance ARN"
+    Value: !Ref Ec2Instance
+  InstanceSecurityGroup:
+    Description: "Instance Security Group ARN"
+    Value: !Ref InstanceSecurityGroup
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'discord-bot-minecraft-ec2-serverless
+
+  Sample SAM Template for discord-bot-minecraft-ec2-serverless
+
+  '
+Globals:
+  Function:
+    Environment:
+      Variables:
+        APPLICATION_PUBLIC_KEY: null
+        INSTANCE_ID: '!Ref Ec2Instance'
+        OBJECT_KEY: tmp.json
+        REGION: us-west-1
+        S3_BUCKET: '!Ref SamTempBucket'
+    Timeout: 15
+Outputs:
+  Ec2Instance:
+    Description: Ec2 Instance ARN
+    Value: '!Ref Ec2Instance'
+  FollowUpFunction:
+    Description: Follow Up Lambda Function ARN
+    Value: '!GetAtt FollowUpFunction.Arn'
+  FollowUpFunctionIamRole:
+    Description: Implicit IAM Role created for Follow Up function
+    Value: '!GetAtt FollowUpFunctionRole.Arn'
+  InstanceSecurityGroup:
+    Description: Instance Security Group ARN
+    Value: '!Ref InstanceSecurityGroup'
+  InteractionApi:
+    Description: API Gateway endpoint URL for Prod stage for Interaction function
+    Value: '!Sub https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/interactions'
+  InteractionFunction:
+    Description: Interaction Lambda Function ARN
+    Value: '!GetAtt InteractionFunction.Arn'
+  InteractionFunctionIamRole:
+    Description: Implicit IAM Role created for Interaction function
+    Value: '!GetAtt InteractionFunctionRole.Arn'
+  SamTempBucket:
+    Description: Sam Temp Bucket ARN
+    Value: '!GetAtt SamTempBucket.Arn'
+Resources:
+  Ec2Instance:
+    Properties:
+      ImageId: ami-00142eb1747a493d9
+      InstanceType: t2.small
+      SecurityGroupIds:
+      - '!Ref InstanceSecurityGroup'
+      Tags:
+      - Key: Name
+        Value: discord-bot-minecraft-ec2-serverless
+      UserData:
+        Fn::Base64: '!Sub #!/bin/bash
+
+          sudo dnf update -y
+
+          sudo dnf remove -y docker docker-client docker-client-latest docker-common
+          docker-latest docker-latest-logrotate docker-logrotate docker-engine
+
+          sudo dnf -y install dnf-plugins-core
+
+          sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+          sudo sed -i ''s/$releasever/9/g'' /etc/yum.repos.d/docker-ce.repo
+
+          sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin
+          docker-compose-plugin
+
+          sudo systemctl enable --now docker
+
+          sudo mkdir /mc && sudo cd /mc
+
+          sudo echo $''services:\n  mc:\n    image: itzg/minecraft-server\n    tty:
+          true\n    stdin_open: true\n    ports:\n      - "25565:25565"\n    environment:\n      EULA:
+          "TRUE"\n    volumes:\n      - ./data:/data\n    restart: always'' > ''./docker-compose.yml''
+
+          sudo docker compose -p minecraft-server up -d
+
+          '
+    Type: AWS::EC2::Instance
+  FollowUpFunction:
+    Properties:
+      Architectures:
+      - x86_64
+      CodeUri: src/
+      Events:
+        EC2StateChange:
+          Properties:
+            Pattern:
+              detail:
+                state:
+                - running
+                - stopped
+              detail-type:
+              - EC2 Instance State-change Notification
+              source:
+              - aws.ec2
+          Type: EventBridgeRule
+      Handler: follow_up.lambda_handler
+      Policies:
+      - Statement:
+        - Action:
+          - s3:GetObject
+          - s3:PutObject
+          - s3:DeleteObject
+          - ec2:DescribeInstances
+          Effect: Allow
+          Resource: '*'
+      Runtime: python3.13
+    Type: AWS::Serverless::Function
+  InstanceSecurityGroup:
+    Properties:
+      GroupDescription: Enable SSH access via port 22
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: 22
+        IpProtocol: tcp
+        ToPort: 22
+      - CidrIp: 0.0.0.0/0
+        FromPort: 25565
+        IpProtocol: tcp
+        ToPort: 25565
+      - CidrIp: 0.0.0.0/0
+        FromPort: 25565
+        IpProtocol: udp
+        ToPort: 25565
+      Tags:
+      - Key: Name
+        Value: discord-bot-minecraft-ec2-serverless
+    Type: AWS::EC2::SecurityGroup
+  InteractionFunction:
+    Properties:
+      Architectures:
+      - x86_64
+      CodeUri: src/
+      Events:
+        Interaction:
+          Properties:
+            Method: post
+            Path: /interactions
+          Type: Api
+      Handler: app.lambda_handler
+      MemorySize: 1024
+      Policies:
+      - Statement:
+        - Action:
+          - s3:GetObject
+          - s3:PutObject
+          - ec2:StopInstances
+          - ec2:StartInstances
+          - ec2:DescribeInstanceStatus
+          Effect: Allow
+          Resource: '*'
+      Runtime: python3.13
+    Type: AWS::Serverless::Function
+  SamTempBucket:
+    Properties:
+      BucketName: sam-temp-bucket-q70se256
+    Type: AWS::S3::Bucket
+Transform: AWS::Serverless-2016-10-31
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'discord-bot-minecraft-ec2-serverless
+
+  Sample SAM Template for discord-bot-minecraft-ec2-serverless
+
+  '
+Globals:
+  Function:
+    Environment:
+      Variables:
+        APPLICATION_PUBLIC_KEY: null
+        INSTANCE_ID: '!Ref Ec2Instance'
+        OBJECT_KEY: tmp.json
+        REGION: us-west-1
+        S3_BUCKET: '!Ref SamTempBucket'
+    Timeout: 15
+Outputs:
+  Ec2Instance:
+    Description: Ec2 Instance ARN
+    Value: '!Ref Ec2Instance'
+  FollowUpFunction:
+    Description: Follow Up Lambda Function ARN
+    Value: '!GetAtt FollowUpFunction.Arn'
+  FollowUpFunctionIamRole:
+    Description: Implicit IAM Role created for Follow Up function
+    Value: '!GetAtt FollowUpFunctionRole.Arn'
+  InstanceSecurityGroup:
+    Description: Instance Security Group ARN
+    Value: '!Ref InstanceSecurityGroup'
+  InteractionApi:
+    Description: API Gateway endpoint URL for Prod stage for Interaction function
+    Value: '!Sub https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/interactions'
+  InteractionFunction:
+    Description: Interaction Lambda Function ARN
+    Value: '!GetAtt InteractionFunction.Arn'
+  InteractionFunctionIamRole:
+    Description: Implicit IAM Role created for Interaction function
+    Value: '!GetAtt InteractionFunctionRole.Arn'
+  SamTempBucket:
+    Description: Sam Temp Bucket ARN
+    Value: '!GetAtt SamTempBucket.Arn'
+Resources:
+  Ec2Instance:
+    Properties:
+      ImageId: ami-00142eb1747a493d9
+      InstanceType: t2.small
+      SecurityGroupIds:
+      - '!Ref InstanceSecurityGroup'
+      Tags:
+      - Key: Name
+        Value: discord-bot-minecraft-ec2-serverless
+      UserData:
+        Fn::Base64: '!Sub #!/bin/bash
+
+          sudo dnf update -y
+
+          sudo dnf remove -y docker docker-client docker-client-latest docker-common
+          docker-latest docker-latest-logrotate docker-logrotate docker-engine
+
+          sudo dnf -y install dnf-plugins-core
+
+          sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+          sudo sed -i ''s/$releasever/9/g'' /etc/yum.repos.d/docker-ce.repo
+
+          sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin
+          docker-compose-plugin
+
+          sudo systemctl enable --now docker
+
+          sudo mkdir /mc && sudo cd /mc
+
+          sudo echo $''services:\n  mc:\n    image: itzg/minecraft-server\n    tty:
+          true\n    stdin_open: true\n    ports:\n      - "25565:25565"\n    environment:\n      EULA:
+          "TRUE"\n    volumes:\n      - ./data:/data\n    restart: always'' > ''./docker-compose.yml''
+
+          sudo docker compose -p minecraft-server up -d
+
+          '
+    Type: AWS::EC2::Instance
+  FollowUpFunction:
+    Properties:
+      Architectures:
+      - x86_64
+      CodeUri: src/
+      Events:
+        EC2StateChange:
+          Properties:
+            Pattern:
+              detail:
+                state:
+                - running
+                - stopped
+              detail-type:
+              - EC2 Instance State-change Notification
+              source:
+              - aws.ec2
+          Type: EventBridgeRule
+      Handler: follow_up.lambda_handler
+      Policies:
+      - Statement:
+        - Action:
+          - s3:GetObject
+          - s3:PutObject
+          - s3:DeleteObject
+          - ec2:DescribeInstances
+          Effect: Allow
+          Resource: '*'
+      Runtime: python3.13
+    Type: AWS::Serverless::Function
+  InstanceSecurityGroup:
+    Properties:
+      GroupDescription: Enable SSH access via port 22
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: 22
+        IpProtocol: tcp
+        ToPort: 22
+      - CidrIp: 0.0.0.0/0
+        FromPort: 25565
+        IpProtocol: tcp
+        ToPort: 25565
+      - CidrIp: 0.0.0.0/0
+        FromPort: 25565
+        IpProtocol: udp
+        ToPort: 25565
+      Tags:
+      - Key: Name
+        Value: discord-bot-minecraft-ec2-serverless
+    Type: AWS::EC2::SecurityGroup
+  InteractionFunction:
+    Properties:
+      Architectures:
+      - x86_64
+      CodeUri: src/
+      Events:
+        Interaction:
+          Properties:
+            Method: post
+            Path: /interactions
+          Type: Api
+      Handler: app.lambda_handler
+      MemorySize: 1024
+      Policies:
+      - Statement:
+        - Action:
+          - s3:GetObject
+          - s3:PutObject
+          - ec2:StopInstances
+          - ec2:StartInstances
+          - ec2:DescribeInstanceStatus
+          Effect: Allow
+          Resource: '*'
+      Runtime: python3.13
+    Type: AWS::Serverless::Function
+  SamTempBucket:
+    Properties:
+      BucketName: sam-temp-bucket-zj9hvhu3
+    Type: AWS::S3::Bucket
+Transform: AWS::Serverless-2016-10-31
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'discord-bot-minecraft-ec2-serverless
+
+  Sample SAM Template for discord-bot-minecraft-ec2-serverless
+
+  '
+Globals:
+  Function:
+    Environment:
+      Variables:
+        APPLICATION_PUBLIC_KEY: null
+        INSTANCE_ID: '!Ref Ec2Instance'
+        OBJECT_KEY: tmp.json
+        REGION: us-west-1
+        S3_BUCKET: '!Ref SamTempBucket'
+    Timeout: 15
+Outputs:
+  Ec2Instance:
+    Description: Ec2 Instance ARN
+    Value: '!Ref Ec2Instance'
+  FollowUpFunction:
+    Description: Follow Up Lambda Function ARN
+    Value: '!GetAtt FollowUpFunction.Arn'
+  FollowUpFunctionIamRole:
+    Description: Implicit IAM Role created for Follow Up function
+    Value: '!GetAtt FollowUpFunctionRole.Arn'
+  InstanceSecurityGroup:
+    Description: Instance Security Group ARN
+    Value: '!Ref InstanceSecurityGroup'
+  InteractionApi:
+    Description: API Gateway endpoint URL for Prod stage for Interaction function
+    Value: '!Sub https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/interactions'
+  InteractionFunction:
+    Description: Interaction Lambda Function ARN
+    Value: '!GetAtt InteractionFunction.Arn'
+  InteractionFunctionIamRole:
+    Description: Implicit IAM Role created for Interaction function
+    Value: '!GetAtt InteractionFunctionRole.Arn'
+  SamTempBucket:
+    Description: Sam Temp Bucket ARN
+    Value: '!GetAtt SamTempBucket.Arn'
+Resources:
+  Ec2Instance:
+    Properties:
+      ImageId: ami-00142eb1747a493d9
+      InstanceType: t2.small
+      SecurityGroupIds:
+      - '!Ref InstanceSecurityGroup'
+      Tags:
+      - Key: Name
+        Value: discord-bot-minecraft-ec2-serverless
+      UserData:
+        Fn::Base64: '!Sub #!/bin/bash
+
+          sudo dnf update -y
+
+          sudo dnf remove -y docker docker-client docker-client-latest docker-common
+          docker-latest docker-latest-logrotate docker-logrotate docker-engine
+
+          sudo dnf -y install dnf-plugins-core
+
+          sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+          sudo sed -i ''s/$releasever/9/g'' /etc/yum.repos.d/docker-ce.repo
+
+          sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin
+          docker-compose-plugin
+
+          sudo systemctl enable --now docker
+
+          sudo mkdir /mc && sudo cd /mc
+
+          sudo echo $''services:\n  mc:\n    image: itzg/minecraft-server\n    tty:
+          true\n    stdin_open: true\n    ports:\n      - "25565:25565"\n    environment:\n      EULA:
+          "TRUE"\n    volumes:\n      - ./data:/data\n    restart: always'' > ''./docker-compose.yml''
+
+          sudo docker compose -p minecraft-server up -d
+
+          '
+    Type: AWS::EC2::Instance
+  FollowUpFunction:
+    Properties:
+      Architectures:
+      - x86_64
+      CodeUri: src/
+      Events:
+        EC2StateChange:
+          Properties:
+            Pattern:
+              detail:
+                state:
+                - running
+                - stopped
+              detail-type:
+              - EC2 Instance State-change Notification
+              source:
+              - aws.ec2
+          Type: EventBridgeRule
+      Handler: follow_up.lambda_handler
+      Policies:
+      - Statement:
+        - Action:
+          - s3:GetObject
+          - s3:PutObject
+          - s3:DeleteObject
+          - ec2:DescribeInstances
+          Effect: Allow
+          Resource: '*'
+      Runtime: python3.13
+    Type: AWS::Serverless::Function
+  InstanceSecurityGroup:
+    Properties:
+      GroupDescription: Enable SSH access via port 22
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: 22
+        IpProtocol: tcp
+        ToPort: 22
+      - CidrIp: 0.0.0.0/0
+        FromPort: 25565
+        IpProtocol: tcp
+        ToPort: 25565
+      - CidrIp: 0.0.0.0/0
+        FromPort: 25565
+        IpProtocol: udp
+        ToPort: 25565
+      Tags:
+      - Key: Name
+        Value: discord-bot-minecraft-ec2-serverless
+    Type: AWS::EC2::SecurityGroup
+  InteractionFunction:
+    Properties:
+      Architectures:
+      - x86_64
+      CodeUri: src/
+      Events:
+        Interaction:
+          Properties:
+            Method: post
+            Path: /interactions
+          Type: Api
+      Handler: app.lambda_handler
+      MemorySize: 1024
+      Policies:
+      - Statement:
+        - Action:
+          - s3:GetObject
+          - s3:PutObject
+          - ec2:StopInstances
+          - ec2:StartInstances
+          - ec2:DescribeInstanceStatus
+          Effect: Allow
+          Resource: '*'
+      Runtime: python3.13
+    Type: AWS::Serverless::Function
+  SamTempBucket:
+    Properties:
+      BucketName: sam-temp-bucket-xbjhzo8e
+    Type: AWS::S3::Bucket
+Transform: AWS::Serverless-2016-10-31
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'discord-bot-minecraft-ec2-serverless
+
+  Sample SAM Template for discord-bot-minecraft-ec2-serverless
+
+  '
+Globals:
+  Function:
+    Environment:
+      Variables:
+        APPLICATION_PUBLIC_KEY: null
+        INSTANCE_ID: '!Ref Ec2Instance'
+        OBJECT_KEY: tmp.json
+        REGION: us-west-1
+        S3_BUCKET: '!Ref SamTempBucket'
+    Timeout: 15
+Outputs:
+  Ec2Instance:
+    Description: Ec2 Instance ARN
+    Value: '!Ref Ec2Instance'
+  FollowUpFunction:
+    Description: Follow Up Lambda Function ARN
+    Value: '!GetAtt FollowUpFunction.Arn'
+  FollowUpFunctionIamRole:
+    Description: Implicit IAM Role created for Follow Up function
+    Value: '!GetAtt FollowUpFunctionRole.Arn'
+  InstanceSecurityGroup:
+    Description: Instance Security Group ARN
+    Value: '!Ref InstanceSecurityGroup'
+  InteractionApi:
+    Description: API Gateway endpoint URL for Prod stage for Interaction function
+    Value: '!Sub https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/interactions'
+  InteractionFunction:
+    Description: Interaction Lambda Function ARN
+    Value: '!GetAtt InteractionFunction.Arn'
+  InteractionFunctionIamRole:
+    Description: Implicit IAM Role created for Interaction function
+    Value: '!GetAtt InteractionFunctionRole.Arn'
+  SamTempBucket:
+    Description: Sam Temp Bucket ARN
+    Value: '!GetAtt SamTempBucket.Arn'
+Resources:
+  Ec2Instance:
+    Properties:
+      ImageId: ami-00142eb1747a493d9
+      InstanceType: t2.small
+      SecurityGroupIds:
+      - '!Ref InstanceSecurityGroup'
+      Tags:
+      - Key: Name
+        Value: discord-bot-minecraft-ec2-serverless
+      UserData:
+        Fn::Base64: '!Sub #!/bin/bash
+
+          sudo dnf update -y
+
+          sudo dnf remove -y docker docker-client docker-client-latest docker-common
+          docker-latest docker-latest-logrotate docker-logrotate docker-engine
+
+          sudo dnf -y install dnf-plugins-core
+
+          sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+          sudo sed -i ''s/$releasever/9/g'' /etc/yum.repos.d/docker-ce.repo
+
+          sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin
+          docker-compose-plugin
+
+          sudo systemctl enable --now docker
+
+          sudo mkdir /mc && sudo cd /mc
+
+          sudo echo $''services:\n  mc:\n    image: itzg/minecraft-server\n    tty:
+          true\n    stdin_open: true\n    ports:\n      - "25565:25565"\n    environment:\n      EULA:
+          "TRUE"\n    volumes:\n      - ./data:/data\n    restart: always'' > ''./docker-compose.yml''
+
+          sudo docker compose -p minecraft-server up -d
+
+          '
+    Type: AWS::EC2::Instance
+  FollowUpFunction:
+    Properties:
+      Architectures:
+      - x86_64
+      CodeUri: src/
+      Events:
+        EC2StateChange:
+          Properties:
+            Pattern:
+              detail:
+                state:
+                - running
+                - stopped
+              detail-type:
+              - EC2 Instance State-change Notification
+              source:
+              - aws.ec2
+          Type: EventBridgeRule
+      Handler: follow_up.lambda_handler
+      Policies:
+      - Statement:
+        - Action:
+          - s3:GetObject
+          - s3:PutObject
+          - s3:DeleteObject
+          - ec2:DescribeInstances
+          Effect: Allow
+          Resource: '*'
+      Runtime: python3.13
+    Type: AWS::Serverless::Function
+  InstanceSecurityGroup:
+    Properties:
+      GroupDescription: Enable SSH access via port 22
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: 22
+        IpProtocol: tcp
+        ToPort: 22
+      - CidrIp: 0.0.0.0/0
+        FromPort: 25565
+        IpProtocol: tcp
+        ToPort: 25565
+      - CidrIp: 0.0.0.0/0
+        FromPort: 25565
+        IpProtocol: udp
+        ToPort: 25565
+      Tags:
+      - Key: Name
+        Value: discord-bot-minecraft-ec2-serverless
+    Type: AWS::EC2::SecurityGroup
+  InteractionFunction:
+    Properties:
+      Architectures:
+      - x86_64
+      CodeUri: src/
+      Events:
+        Interaction:
+          Properties:
+            Method: post
+            Path: /interactions
+          Type: Api
+      Handler: app.lambda_handler
+      MemorySize: 1024
+      Policies:
+      - Statement:
+        - Action:
+          - s3:GetObject
+          - s3:PutObject
+          - ec2:StopInstances
+          - ec2:StartInstances
+          - ec2:DescribeInstanceStatus
+          Effect: Allow
+          Resource: '*'
+      Runtime: python3.13
+    Type: AWS::Serverless::Function
+  SamTempBucket:
+    Properties:
+      BucketName: sam-temp-bucket-kr3kdt8t
+    Type: AWS::S3::Bucket
+Transform: AWS::Serverless-2016-10-31
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'discord-bot-minecraft-ec2-serverless
+
+  Sample SAM Template for discord-bot-minecraft-ec2-serverless
+
+  '
+Globals:
+  Function:
+    Environment:
+      Variables:
+        APPLICATION_PUBLIC_KEY: ac717bd98d442a772502bafe4daf5ae81cf80faa132a4ad180b8d914b29b4c28
+        INSTANCE_ID: '!Ref Ec2Instance'
+        OBJECT_KEY: tmp.json
+        REGION: us-west-1
+        S3_BUCKET: '!Ref SamTempBucket'
+    Timeout: 15
+Outputs:
+  Ec2Instance:
+    Description: Ec2 Instance ARN
+    Value: '!Ref Ec2Instance'
+  FollowUpFunction:
+    Description: Follow Up Lambda Function ARN
+    Value: '!GetAtt FollowUpFunction.Arn'
+  FollowUpFunctionIamRole:
+    Description: Implicit IAM Role created for Follow Up function
+    Value: '!GetAtt FollowUpFunctionRole.Arn'
+  InstanceSecurityGroup:
+    Description: Instance Security Group ARN
+    Value: '!Ref InstanceSecurityGroup'
+  InteractionApi:
+    Description: API Gateway endpoint URL for Prod stage for Interaction function
+    Value: '!Sub https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/interactions'
+  InteractionFunction:
+    Description: Interaction Lambda Function ARN
+    Value: '!GetAtt InteractionFunction.Arn'
+  InteractionFunctionIamRole:
+    Description: Implicit IAM Role created for Interaction function
+    Value: '!GetAtt InteractionFunctionRole.Arn'
+  SamTempBucket:
+    Description: Sam Temp Bucket ARN
+    Value: '!GetAtt SamTempBucket.Arn'
+Resources:
+  Ec2Instance:
+    Properties:
+      ImageId: ami-00142eb1747a493d9
+      InstanceType: t2.small
+      SecurityGroupIds:
+      - '!Ref InstanceSecurityGroup'
+      Tags:
+      - Key: Name
+        Value: discord-bot-minecraft-ec2-serverless
+      UserData:
+        Fn::Base64: '!Sub #!/bin/bash
+
+          sudo dnf update -y
+
+          sudo dnf remove -y docker docker-client docker-client-latest docker-common
+          docker-latest docker-latest-logrotate docker-logrotate docker-engine
+
+          sudo dnf -y install dnf-plugins-core
+
+          sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+          sudo sed -i ''s/$releasever/9/g'' /etc/yum.repos.d/docker-ce.repo
+
+          sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin
+          docker-compose-plugin
+
+          sudo systemctl enable --now docker
+
+          sudo mkdir /mc && sudo cd /mc
+
+          sudo echo $''services:\n  mc:\n    image: itzg/minecraft-server\n    tty:
+          true\n    stdin_open: true\n    ports:\n      - "25565:25565"\n    environment:\n      EULA:
+          "TRUE"\n    volumes:\n      - ./data:/data\n    restart: always'' > ''./docker-compose.yml''
+
+          sudo docker compose -p minecraft-server up -d
+
+          '
+    Type: AWS::EC2::Instance
+  FollowUpFunction:
+    Properties:
+      Architectures:
+      - x86_64
+      CodeUri: src/
+      Events:
+        EC2StateChange:
+          Properties:
+            Pattern:
+              detail:
+                state:
+                - running
+                - stopped
+              detail-type:
+              - EC2 Instance State-change Notification
+              source:
+              - aws.ec2
+          Type: EventBridgeRule
+      Handler: follow_up.lambda_handler
+      Policies:
+      - Statement:
+        - Action:
+          - s3:GetObject
+          - s3:PutObject
+          - s3:DeleteObject
+          - ec2:DescribeInstances
+          Effect: Allow
+          Resource: '*'
+      Runtime: python3.13
+    Type: AWS::Serverless::Function
+  InstanceSecurityGroup:
+    Properties:
+      GroupDescription: Enable SSH access via port 22
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: 22
+        IpProtocol: tcp
+        ToPort: 22
+      - CidrIp: 0.0.0.0/0
+        FromPort: 25565
+        IpProtocol: tcp
+        ToPort: 25565
+      - CidrIp: 0.0.0.0/0
+        FromPort: 25565
+        IpProtocol: udp
+        ToPort: 25565
+      Tags:
+      - Key: Name
+        Value: discord-bot-minecraft-ec2-serverless
+    Type: AWS::EC2::SecurityGroup
+  InteractionFunction:
+    Properties:
+      Architectures:
+      - x86_64
+      CodeUri: src/
+      Events:
+        Interaction:
+          Properties:
+            Method: post
+            Path: /interactions
+          Type: Api
+      Handler: app.lambda_handler
+      MemorySize: 1024
+      Policies:
+      - Statement:
+        - Action:
+          - s3:GetObject
+          - s3:PutObject
+          - ec2:StopInstances
+          - ec2:StartInstances
+          - ec2:DescribeInstanceStatus
+          Effect: Allow
+          Resource: '*'
+      Runtime: python3.13
+    Type: AWS::Serverless::Function
+  SamTempBucket:
+    Properties:
+      BucketName: sam-temp-bucket-3zhwz789
+    Type: AWS::S3::Bucket
+Transform: AWS::Serverless-2016-10-31
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'discord-bot-minecraft-ec2-serverless
+
+  Sample SAM Template for discord-bot-minecraft-ec2-serverless
+
+  '
+Globals:
+  Function:
+    Environment:
+      Variables:
+        APPLICATION_PUBLIC_KEY: ac717bd98d442a772502bafe4daf5ae81cf80faa132a4ad180b8d914b29b4c28
+        INSTANCE_ID: '!Ref Ec2Instance'
+        OBJECT_KEY: tmp.json
+        REGION: us-west-1
+        S3_BUCKET: '!Ref SamTempBucket'
+    Timeout: 15
+Outputs:
+  Ec2Instance:
+    Description: Ec2 Instance ARN
+    Value: '!Ref Ec2Instance'
+  FollowUpFunction:
+    Description: Follow Up Lambda Function ARN
+    Value: '!GetAtt FollowUpFunction.Arn'
+  FollowUpFunctionIamRole:
+    Description: Implicit IAM Role created for Follow Up function
+    Value: '!GetAtt FollowUpFunctionRole.Arn'
+  InstanceSecurityGroup:
+    Description: Instance Security Group ARN
+    Value: '!Ref InstanceSecurityGroup'
+  InteractionApi:
+    Description: API Gateway endpoint URL for Prod stage for Interaction function
+    Value: '!Sub https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/interactions'
+  InteractionFunction:
+    Description: Interaction Lambda Function ARN
+    Value: '!GetAtt InteractionFunction.Arn'
+  InteractionFunctionIamRole:
+    Description: Implicit IAM Role created for Interaction function
+    Value: '!GetAtt InteractionFunctionRole.Arn'
+  SamTempBucket:
+    Description: Sam Temp Bucket ARN
+    Value: '!GetAtt SamTempBucket.Arn'
+Resources:
+  Ec2Instance:
+    Properties:
+      ImageId: ami-00142eb1747a493d9
+      InstanceType: t2.small
+      SecurityGroupIds:
+      - '!Ref InstanceSecurityGroup'
+      Tags:
+      - Key: Name
+        Value: discord-bot-minecraft-ec2-serverless
+      UserData:
+        Fn::Base64: '!Sub #!/bin/bash
+
+          sudo dnf update -y
+
+          sudo dnf remove -y docker docker-client docker-client-latest docker-common
+          docker-latest docker-latest-logrotate docker-logrotate docker-engine
+
+          sudo dnf -y install dnf-plugins-core
+
+          sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+          sudo sed -i ''s/$releasever/9/g'' /etc/yum.repos.d/docker-ce.repo
+
+          sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin
+          docker-compose-plugin
+
+          sudo systemctl enable --now docker
+
+          sudo mkdir /mc && sudo cd /mc
+
+          sudo echo $''services:\n  mc:\n    image: itzg/minecraft-server\n    tty:
+          true\n    stdin_open: true\n    ports:\n      - "25565:25565"\n    environment:\n      EULA:
+          "TRUE"\n    volumes:\n      - ./data:/data\n    restart: always'' > ''./docker-compose.yml''
+
+          sudo docker compose -p minecraft-server up -d
+
+          '
+    Type: AWS::EC2::Instance
+  FollowUpFunction:
+    Properties:
+      Architectures:
+      - x86_64
+      CodeUri: src/
+      Events:
+        EC2StateChange:
+          Properties:
+            Pattern:
+              detail:
+                state:
+                - running
+                - stopped
+              detail-type:
+              - EC2 Instance State-change Notification
+              source:
+              - aws.ec2
+          Type: EventBridgeRule
+      Handler: follow_up.lambda_handler
+      Policies:
+      - Statement:
+        - Action:
+          - s3:GetObject
+          - s3:PutObject
+          - s3:DeleteObject
+          - ec2:DescribeInstances
+          Effect: Allow
+          Resource: '*'
+      Runtime: python3.13
+    Type: AWS::Serverless::Function
+  InstanceSecurityGroup:
+    Properties:
+      GroupDescription: Enable SSH access via port 22
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: 22
+        IpProtocol: tcp
+        ToPort: 22
+      - CidrIp: 0.0.0.0/0
+        FromPort: 25565
+        IpProtocol: tcp
+        ToPort: 25565
+      - CidrIp: 0.0.0.0/0
+        FromPort: 25565
+        IpProtocol: udp
+        ToPort: 25565
+      Tags:
+      - Key: Name
+        Value: discord-bot-minecraft-ec2-serverless
+    Type: AWS::EC2::SecurityGroup
+  InteractionFunction:
+    Properties:
+      Architectures:
+      - x86_64
+      CodeUri: src/
+      Events:
+        Interaction:
+          Properties:
+            Method: post
+            Path: /interactions
+          Type: Api
+      Handler: app.lambda_handler
+      MemorySize: 1024
+      Policies:
+      - Statement:
+        - Action:
+          - s3:GetObject
+          - s3:PutObject
+          - ec2:StopInstances
+          - ec2:StartInstances
+          - ec2:DescribeInstanceStatus
+          Effect: Allow
+          Resource: '*'
+      Runtime: python3.13
+    Type: AWS::Serverless::Function
+  SamTempBucket:
+    Properties:
+      BucketName: sam-temp-bucket-3i8j2rtq
+    Type: AWS::S3::Bucket
+Transform: AWS::Serverless-2016-10-31
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'discord-bot-minecraft-ec2-serverless
+
+    Sample SAM Template for discord-bot-minecraft-ec2-serverless
+
+    '
+Globals:
+    Function:
+        Environment:
+            Variables:
+                APPLICATION_PUBLIC_KEY: ac717bd98d442a772502bafe4daf5ae81cf80faa132a4ad180b8d914b29b4c28
+                INSTANCE_ID: '!Ref Ec2Instance'
+                OBJECT_KEY: tmp.json
+                REGION: us-west-1
+                S3_BUCKET: '!Ref SamTempBucket'
+        Timeout: 15
+Outputs:
+    Ec2Instance:
+        Description: Ec2 Instance ARN
+        Value: '!Ref Ec2Instance'
+    FollowUpFunction:
+        Description: Follow Up Lambda Function ARN
+        Value: '!GetAtt FollowUpFunction.Arn'
+    FollowUpFunctionIamRole:
+        Description: Implicit IAM Role created for Follow Up function
+        Value: '!GetAtt FollowUpFunctionRole.Arn'
+    InstanceSecurityGroup:
+        Description: Instance Security Group ARN
+        Value: '!Ref InstanceSecurityGroup'
+    InteractionApi:
+        Description: API Gateway endpoint URL for Prod stage for Interaction function
+        Value: '!Sub https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/interactions'
+    InteractionFunction:
+        Description: Interaction Lambda Function ARN
+        Value: '!GetAtt InteractionFunction.Arn'
+    InteractionFunctionIamRole:
+        Description: Implicit IAM Role created for Interaction function
+        Value: '!GetAtt InteractionFunctionRole.Arn'
+    SamTempBucket:
+        Description: Sam Temp Bucket ARN
+        Value: '!GetAtt SamTempBucket.Arn'
+Resources:
+    Ec2Instance:
+        Properties:
+            ImageId: ami-00142eb1747a493d9
+            InstanceType: t2.small
+            SecurityGroupIds:
+            - '!Ref InstanceSecurityGroup'
+            Tags:
+            -   Key: Name
+                Value: discord-bot-minecraft-ec2-serverless
+            UserData:
+                Fn::Base64: '!Sub #!/bin/bash
+
+                    sudo dnf update -y
+
+                    sudo dnf remove -y docker docker-client docker-client-latest docker-common
+                    docker-latest docker-latest-logrotate docker-logrotate docker-engine
+
+                    sudo dnf -y install dnf-plugins-core
+
+                    sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+                    sudo sed -i ''s/$releasever/9/g'' /etc/yum.repos.d/docker-ce.repo
+
+                    sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin
+                    docker-compose-plugin
+
+                    sudo systemctl enable --now docker
+
+                    sudo mkdir /mc && sudo cd /mc
+
+                    sudo echo $''services:\n  mc:\n    image: itzg/minecraft-server\n    tty:
+                    true\n    stdin_open: true\n    ports:\n      - "25565:25565"\n    environment:\n      EULA:
+                    "TRUE"\n    volumes:\n      - ./data:/data\n    restart: always''
+                    > ''./docker-compose.yml''
+
+                    sudo docker compose -p minecraft-server up -d
+
+                    '
+        Type: AWS::EC2::Instance
+    FollowUpFunction:
+        Properties:
+            Architectures:
+            - x86_64
+            CodeUri: src/
+            Events:
+                EC2StateChange:
+                    Properties:
+                        Pattern:
+                            detail:
+                                state:
+                                - running
+                                - stopped
+                            detail-type:
+                            - EC2 Instance State-change Notification
+                            source:
+                            - aws.ec2
+                    Type: EventBridgeRule
+            Handler: follow_up.lambda_handler
+            Policies:
+            -   Statement:
+                -   Action:
+                    - s3:GetObject
+                    - s3:PutObject
+                    - s3:DeleteObject
+                    - ec2:DescribeInstances
+                    Effect: Allow
+                    Resource: '*'
+            Runtime: python3.13
+        Type: AWS::Serverless::Function
+    InstanceSecurityGroup:
+        Properties:
+            GroupDescription: Enable SSH access via port 22
+            SecurityGroupIngress:
+            -   CidrIp: 0.0.0.0/0
+                FromPort: 22
+                IpProtocol: tcp
+                ToPort: 22
+            -   CidrIp: 0.0.0.0/0
+                FromPort: 25565
+                IpProtocol: tcp
+                ToPort: 25565
+            -   CidrIp: 0.0.0.0/0
+                FromPort: 25565
+                IpProtocol: udp
+                ToPort: 25565
+            Tags:
+            -   Key: Name
+                Value: discord-bot-minecraft-ec2-serverless
+        Type: AWS::EC2::SecurityGroup
+    InteractionFunction:
+        Properties:
+            Architectures:
+            - x86_64
+            CodeUri: src/
+            Events:
+                Interaction:
+                    Properties:
+                        Method: post
+                        Path: /interactions
+                    Type: Api
+            Handler: app.lambda_handler
+            MemorySize: 1024
+            Policies:
+            -   Statement:
+                -   Action:
+                    - s3:GetObject
+                    - s3:PutObject
+                    - ec2:StopInstances
+                    - ec2:StartInstances
+                    - ec2:DescribeInstanceStatus
+                    Effect: Allow
+                    Resource: '*'
+            Runtime: python3.13
+        Type: AWS::Serverless::Function
+    SamTempBucket:
+        Properties:
+            BucketName: sam-temp-bucket-j87qz9zd
+        Type: AWS::S3::Bucket
+Transform: AWS::Serverless-2016-10-31
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'discord-bot-minecraft-ec2-serverless
+
+    Sample SAM Template for discord-bot-minecraft-ec2-serverless
+
+    '
+Globals:
+    Function:
+        Environment:
+            Variables:
+                APPLICATION_PUBLIC_KEY: ac717bd98d442a772502bafe4daf5ae81cf80faa132a4ad180b8d914b29b4c28
+                INSTANCE_ID: '!Ref Ec2Instance'
+                OBJECT_KEY: tmp.json
+                REGION: us-west-1
+                S3_BUCKET: '!Ref SamTempBucket'
+        Timeout: 15
+Outputs:
+    Ec2Instance:
+        Description: Ec2 Instance ARN
+        Value: '!Ref Ec2Instance'
+    FollowUpFunction:
+        Description: Follow Up Lambda Function ARN
+        Value: '!GetAtt FollowUpFunction.Arn'
+    FollowUpFunctionIamRole:
+        Description: Implicit IAM Role created for Follow Up function
+        Value: '!GetAtt FollowUpFunctionRole.Arn'
+    InstanceSecurityGroup:
+        Description: Instance Security Group ARN
+        Value: '!Ref InstanceSecurityGroup'
+    InteractionApi:
+        Description: API Gateway endpoint URL for Prod stage for Interaction function
+        Value: '!Sub https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/interactions'
+    InteractionFunction:
+        Description: Interaction Lambda Function ARN
+        Value: '!GetAtt InteractionFunction.Arn'
+    InteractionFunctionIamRole:
+        Description: Implicit IAM Role created for Interaction function
+        Value: '!GetAtt InteractionFunctionRole.Arn'
+    SamTempBucket:
+        Description: Sam Temp Bucket ARN
+        Value: '!GetAtt SamTempBucket.Arn'
+Resources:
+    Ec2Instance:
+        Properties:
+            ImageId: ami-00142eb1747a493d9
+            InstanceType: t2.small
+            SecurityGroupIds:
+            - '!Ref InstanceSecurityGroup'
+            Tags:
+            -   Key: Name
+                Value: discord-bot-minecraft-ec2-serverless
+            UserData:
+                Fn::Base64: '!Sub #!/bin/bash
+
+                    sudo dnf update -y
+
+                    sudo dnf remove -y docker docker-client docker-client-latest docker-common
+                    docker-latest docker-latest-logrotate docker-logrotate docker-engine
+
+                    sudo dnf -y install dnf-plugins-core
+
+                    sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+                    sudo sed -i ''s/$releasever/9/g'' /etc/yum.repos.d/docker-ce.repo
+
+                    sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin
+                    docker-compose-plugin
+
+                    sudo systemctl enable --now docker
+
+                    sudo mkdir /mc && sudo cd /mc
+
+                    sudo echo $''services:\n  mc:\n    image: itzg/minecraft-server\n    tty:
+                    true\n    stdin_open: true\n    ports:\n      - "25565:25565"\n    environment:\n      EULA:
+                    "TRUE"\n    volumes:\n      - ./data:/data\n    restart: always''
+                    > ''./docker-compose.yml''
+
+                    sudo docker compose -p minecraft-server up -d
+
+                    '
+        Type: AWS::EC2::Instance
+    FollowUpFunction:
+        Properties:
+            Architectures:
+            - x86_64
+            CodeUri: src/
+            Events:
+                EC2StateChange:
+                    Properties:
+                        Pattern:
+                            detail:
+                                state:
+                                - running
+                                - stopped
+                            detail-type:
+                            - EC2 Instance State-change Notification
+                            source:
+                            - aws.ec2
+                    Type: EventBridgeRule
+            Handler: follow_up.lambda_handler
+            Policies:
+            -   Statement:
+                -   Action:
+                    - s3:GetObject
+                    - s3:PutObject
+                    - s3:DeleteObject
+                    - ec2:DescribeInstances
+                    Effect: Allow
+                    Resource: '*'
+            Runtime: python3.13
+        Type: AWS::Serverless::Function
+    InstanceSecurityGroup:
+        Properties:
+            GroupDescription: Enable SSH access via port 22
+            SecurityGroupIngress:
+            -   CidrIp: 0.0.0.0/0
+                FromPort: 22
+                IpProtocol: tcp
+                ToPort: 22
+            -   CidrIp: 0.0.0.0/0
+                FromPort: 25565
+                IpProtocol: tcp
+                ToPort: 25565
+            -   CidrIp: 0.0.0.0/0
+                FromPort: 25565
+                IpProtocol: udp
+                ToPort: 25565
+            Tags:
+            -   Key: Name
+                Value: discord-bot-minecraft-ec2-serverless
+        Type: AWS::EC2::SecurityGroup
+    InteractionFunction:
+        Properties:
+            Architectures:
+            - x86_64
+            CodeUri: src/
+            Events:
+                Interaction:
+                    Properties:
+                        Method: post
+                        Path: /interactions
+                    Type: Api
+            Handler: app.lambda_handler
+            MemorySize: 1024
+            Policies:
+            -   Statement:
+                -   Action:
+                    - s3:GetObject
+                    - s3:PutObject
+                    - ec2:StopInstances
+                    - ec2:StartInstances
+                    - ec2:DescribeInstanceStatus
+                    Effect: Allow
+                    Resource: '*'
+            Runtime: python3.13
+        Type: AWS::Serverless::Function
+    SamTempBucket:
+        Properties:
+            BucketName: sam-temp-bucket-63rnur33
+        Type: AWS::S3::Bucket
+Transform: AWS::Serverless-2016-10-31
+Key: Value
+Key: Value
+Key: Value
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'discord-bot-minecraft-ec2-serverless
+
+  Sample SAM Template for discord-bot-minecraft-ec2-serverless
+
+  '
+Globals:
+  Function:
+    Environment:
+      Variables:
+        APPLICATION_PUBLIC_KEY: ac717bd98d442a772502bafe4daf5ae81cf80faa132a4ad180b8d914b29b4c28
+        INSTANCE_ID: '!Ref Ec2Instance'
+        OBJECT_KEY: tmp.json
+        REGION: us-west-1
+        S3_BUCKET: '!Ref SamTempBucket'
+    Timeout: 15
+Key: Value
+Outputs:
+  Ec2Instance:
+    Description: Ec2 Instance ARN
+    Value: '!Ref Ec2Instance'
+  FollowUpFunction:
+    Description: Follow Up Lambda Function ARN
+    Value: '!GetAtt FollowUpFunction.Arn'
+  FollowUpFunctionIamRole:
+    Description: Implicit IAM Role created for Follow Up function
+    Value: '!GetAtt FollowUpFunctionRole.Arn'
+  InstanceSecurityGroup:
+    Description: Instance Security Group ARN
+    Value: '!Ref InstanceSecurityGroup'
+  InteractionApi:
+    Description: API Gateway endpoint URL for Prod stage for Interaction function
+    Value: '!Sub https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/interactions'
+  InteractionFunction:
+    Description: Interaction Lambda Function ARN
+    Value: '!GetAtt InteractionFunction.Arn'
+  InteractionFunctionIamRole:
+    Description: Implicit IAM Role created for Interaction function
+    Value: '!GetAtt InteractionFunctionRole.Arn'
+  SamTempBucket:
+    Description: Sam Temp Bucket ARN
+    Value: '!GetAtt SamTempBucket.Arn'
+Resources:
+  Ec2Instance:
+    Properties:
+      ImageId: ami-00142eb1747a493d9
+      InstanceType: t2.small
+      SecurityGroupIds:
+      - '!Ref InstanceSecurityGroup'
+      Tags:
+      - Key: Name
+        Value: discord-bot-minecraft-ec2-serverless
+      UserData:
+        Fn::Base64: '!Sub #!/bin/bash
+
+          sudo dnf update -y
+
+          sudo dnf remove -y docker docker-client docker-client-latest docker-common
+          docker-latest docker-latest-logrotate docker-logrotate docker-engine
+
+          sudo dnf -y install dnf-plugins-core
+
+          sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+          sudo sed -i ''s/$releasever/9/g'' /etc/yum.repos.d/docker-ce.repo
+
+          sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin
+          docker-compose-plugin
+
+          sudo systemctl enable --now docker
+
+          sudo mkdir /mc && sudo cd /mc
+
+          sudo echo $''services:\n  mc:\n    image: itzg/minecraft-server\n    tty:
+          true\n    stdin_open: true\n    ports:\n      - "25565:25565"\n    environment:\n      EULA:
+          "TRUE"\n    volumes:\n      - ./data:/data\n    restart: always'' > ''./docker-compose.yml''
+
+          sudo docker compose -p minecraft-server up -d
+
+          '
+    Type: AWS::EC2::Instance
+  FollowUpFunction:
+    Properties:
+      Architectures:
+      - x86_64
+      CodeUri: src/
+      Events:
+        EC2StateChange:
+          Properties:
+            Pattern:
+              detail:
+                state:
+                - running
+                - stopped
+              detail-type:
+              - EC2 Instance State-change Notification
+              source:
+              - aws.ec2
+          Type: EventBridgeRule
+      Handler: follow_up.lambda_handler
+      Policies:
+      - Statement:
+        - Action:
+          - s3:GetObject
+          - s3:PutObject
+          - s3:DeleteObject
+          - ec2:DescribeInstances
+          Effect: Allow
+          Resource: '*'
+      Runtime: python3.13
+    Type: AWS::Serverless::Function
+  InstanceSecurityGroup:
+    Properties:
+      GroupDescription: Enable SSH access via port 22
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: 22
+        IpProtocol: tcp
+        ToPort: 22
+      - CidrIp: 0.0.0.0/0
+        FromPort: 25565
+        IpProtocol: tcp
+        ToPort: 25565
+      - CidrIp: 0.0.0.0/0
+        FromPort: 25565
+        IpProtocol: udp
+        ToPort: 25565
+      Tags:
+      - Key: Name
+        Value: discord-bot-minecraft-ec2-serverless
+    Type: AWS::EC2::SecurityGroup
+  InteractionFunction:
+    Properties:
+      Architectures:
+      - x86_64
+      CodeUri: src/
+      Events:
+        Interaction:
+          Properties:
+            Method: post
+            Path: /interactions
+          Type: Api
+      Handler: app.lambda_handler
+      MemorySize: 1024
+      Policies:
+      - Statement:
+        - Action:
+          - s3:GetObject
+          - s3:PutObject
+          - ec2:StopInstances
+          - ec2:StartInstances
+          - ec2:DescribeInstanceStatus
+          Effect: Allow
+          Resource: '*'
+      Runtime: python3.13
+    Type: AWS::Serverless::Function
+  SamTempBucket:
+    Properties:
+      BucketName: sam-temp-bucket-vempbif3
+    Type: AWS::S3::Bucket
+Transform: AWS::Serverless-2016-10-31
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'discord-bot-minecraft-ec2-serverless
+
+  Sample SAM Template for discord-bot-minecraft-ec2-serverless
+
+  '
+Globals:
+  Function:
+    Environment:
+      Variables:
+        APPLICATION_PUBLIC_KEY: ac717bd98d442a772502bafe4daf5ae81cf80faa132a4ad180b8d914b29b4c28
+        INSTANCE_ID: '!Ref Ec2Instance'
+        OBJECT_KEY: tmp.json
+        REGION: us-west-1
+        S3_BUCKET: '!Ref SamTempBucket'
+    Timeout: 15
+Key: Value
+Outputs:
+  Ec2Instance:
+    Description: Ec2 Instance ARN
+    Value: '!Ref Ec2Instance'
+  FollowUpFunction:
+    Description: Follow Up Lambda Function ARN
+    Value: '!GetAtt FollowUpFunction.Arn'
+  FollowUpFunctionIamRole:
+    Description: Implicit IAM Role created for Follow Up function
+    Value: '!GetAtt FollowUpFunctionRole.Arn'
+  InstanceSecurityGroup:
+    Description: Instance Security Group ARN
+    Value: '!Ref InstanceSecurityGroup'
+  InteractionApi:
+    Description: API Gateway endpoint URL for Prod stage for Interaction function
+    Value: '!Sub https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/interactions'
+  InteractionFunction:
+    Description: Interaction Lambda Function ARN
+    Value: '!GetAtt InteractionFunction.Arn'
+  InteractionFunctionIamRole:
+    Description: Implicit IAM Role created for Interaction function
+    Value: '!GetAtt InteractionFunctionRole.Arn'
+  SamTempBucket:
+    Description: Sam Temp Bucket ARN
+    Value: '!GetAtt SamTempBucket.Arn'
+Resources:
+  Ec2Instance:
+    Properties:
+      ImageId: ami-00142eb1747a493d9
+      InstanceType: t2.small
+      SecurityGroupIds:
+      - '!Ref InstanceSecurityGroup'
+      Tags:
+      - Key: Name
+        Value: discord-bot-minecraft-ec2-serverless
+      UserData:
+        Fn::Base64: '!Sub #!/bin/bash
+
+          sudo dnf update -y
+
+          sudo dnf remove -y docker docker-client docker-client-latest docker-common
+          docker-latest docker-latest-logrotate docker-logrotate docker-engine
+
+          sudo dnf -y install dnf-plugins-core
+
+          sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+          sudo sed -i ''s/$releasever/9/g'' /etc/yum.repos.d/docker-ce.repo
+
+          sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin
+          docker-compose-plugin
+
+          sudo systemctl enable --now docker
+
+          sudo mkdir /mc && sudo cd /mc
+
+          sudo echo $''services:\n  mc:\n    image: itzg/minecraft-server\n    tty:
+          true\n    stdin_open: true\n    ports:\n      - "25565:25565"\n    environment:\n      EULA:
+          "TRUE"\n    volumes:\n      - ./data:/data\n    restart: always'' > ''./docker-compose.yml''
+
+          sudo docker compose -p minecraft-server up -d
+
+          '
+    Type: AWS::EC2::Instance
+  FollowUpFunction:
+    Properties:
+      Architectures:
+      - x86_64
+      CodeUri: src/
+      Events:
+        EC2StateChange:
+          Properties:
+            Pattern:
+              detail:
+                state:
+                - running
+                - stopped
+              detail-type:
+              - EC2 Instance State-change Notification
+              source:
+              - aws.ec2
+          Type: EventBridgeRule
+      Handler: follow_up.lambda_handler
+      Policies:
+      - Statement:
+        - Action:
+          - s3:GetObject
+          - s3:PutObject
+          - s3:DeleteObject
+          - ec2:DescribeInstances
+          Effect: Allow
+          Resource: '*'
+      Runtime: python3.13
+    Type: AWS::Serverless::Function
+  InstanceSecurityGroup:
+    Properties:
+      GroupDescription: Enable SSH access via port 22
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: 22
+        IpProtocol: tcp
+        ToPort: 22
+      - CidrIp: 0.0.0.0/0
+        FromPort: 25565
+        IpProtocol: tcp
+        ToPort: 25565
+      - CidrIp: 0.0.0.0/0
+        FromPort: 25565
+        IpProtocol: udp
+        ToPort: 25565
+      Tags:
+      - Key: Name
+        Value: discord-bot-minecraft-ec2-serverless
+    Type: AWS::EC2::SecurityGroup
+  InteractionFunction:
+    Properties:
+      Architectures:
+      - x86_64
+      CodeUri: src/
+      Events:
+        Interaction:
+          Properties:
+            Method: post
+            Path: /interactions
+          Type: Api
+      Handler: app.lambda_handler
+      MemorySize: 1024
+      Policies:
+      - Statement:
+        - Action:
+          - s3:GetObject
+          - s3:PutObject
+          - ec2:StopInstances
+          - ec2:StartInstances
+          - ec2:DescribeInstanceStatus
+          Effect: Allow
+          Resource: '*'
+      Runtime: python3.13
+    Type: AWS::Serverless::Function
+  SamTempBucket:
+    Properties:
+      BucketName: sam-temp-bucket-a475x40d
+    Type: AWS::S3::Bucket
+Transform: AWS::Serverless-2016-10-31
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'discord-bot-minecraft-ec2-serverless
+
+  Sample SAM Template for discord-bot-minecraft-ec2-serverless
+
+  '
+Globals:
+  Function:
+    Environment:
+      Variables:
+        APPLICATION_PUBLIC_KEY: ac717bd98d442a772502bafe4daf5ae81cf80faa132a4ad180b8d914b29b4c28
+        INSTANCE_ID: '!Ref Ec2Instance'
+        OBJECT_KEY: tmp.json
+        REGION: us-west-1
+        S3_BUCKET: '!Ref SamTempBucket'
+    Timeout: 15
+Key: Value
+Outputs:
+  Ec2Instance:
+    Description: Ec2 Instance ARN
+    Value: '!Ref Ec2Instance'
+  FollowUpFunction:
+    Description: Follow Up Lambda Function ARN
+    Value: '!GetAtt FollowUpFunction.Arn'
+  FollowUpFunctionIamRole:
+    Description: Implicit IAM Role created for Follow Up function
+    Value: '!GetAtt FollowUpFunctionRole.Arn'
+  InstanceSecurityGroup:
+    Description: Instance Security Group ARN
+    Value: '!Ref InstanceSecurityGroup'
+  InteractionApi:
+    Description: API Gateway endpoint URL for Prod stage for Interaction function
+    Value: '!Sub https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/interactions'
+  InteractionFunction:
+    Description: Interaction Lambda Function ARN
+    Value: '!GetAtt InteractionFunction.Arn'
+  InteractionFunctionIamRole:
+    Description: Implicit IAM Role created for Interaction function
+    Value: '!GetAtt InteractionFunctionRole.Arn'
+  SamTempBucket:
+    Description: Sam Temp Bucket ARN
+    Value: '!GetAtt SamTempBucket.Arn'
+Resources:
+  Ec2Instance:
+    Properties:
+      ImageId: ami-00142eb1747a493d9
+      InstanceType: t2.small
+      SecurityGroupIds:
+      - '!Ref InstanceSecurityGroup'
+      Tags:
+      - Key: Name
+        Value: discord-bot-minecraft-ec2-serverless
+      UserData:
+        Fn::Base64: '!Sub #!/bin/bash
+
+          sudo dnf update -y
+
+          sudo dnf remove -y docker docker-client docker-client-latest docker-common
+          docker-latest docker-latest-logrotate docker-logrotate docker-engine
+
+          sudo dnf -y install dnf-plugins-core
+
+          sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+          sudo sed -i ''s/$releasever/9/g'' /etc/yum.repos.d/docker-ce.repo
+
+          sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin
+          docker-compose-plugin
+
+          sudo systemctl enable --now docker
+
+          sudo mkdir /mc && sudo cd /mc
+
+          sudo echo $''services:\n  mc:\n    image: itzg/minecraft-server\n    tty:
+          true\n    stdin_open: true\n    ports:\n      - "25565:25565"\n    environment:\n      EULA:
+          "TRUE"\n    volumes:\n      - ./data:/data\n    restart: always'' > ''./docker-compose.yml''
+
+          sudo docker compose -p minecraft-server up -d
+
+          '
+    Type: AWS::EC2::Instance
+  FollowUpFunction:
+    Properties:
+      Architectures:
+      - x86_64
+      CodeUri: src/
+      Events:
+        EC2StateChange:
+          Properties:
+            Pattern:
+              detail:
+                state:
+                - running
+                - stopped
+              detail-type:
+              - EC2 Instance State-change Notification
+              source:
+              - aws.ec2
+          Type: EventBridgeRule
+      Handler: follow_up.lambda_handler
+      Policies:
+      - Statement:
+        - Action:
+          - s3:GetObject
+          - s3:PutObject
+          - s3:DeleteObject
+          - ec2:DescribeInstances
+          Effect: Allow
+          Resource: '*'
+      Runtime: python3.13
+    Type: AWS::Serverless::Function
+  InstanceSecurityGroup:
+    Properties:
+      GroupDescription: Enable SSH access via port 22
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: 22
+        IpProtocol: tcp
+        ToPort: 22
+      - CidrIp: 0.0.0.0/0
+        FromPort: 25565
+        IpProtocol: tcp
+        ToPort: 25565
+      - CidrIp: 0.0.0.0/0
+        FromPort: 25565
+        IpProtocol: udp
+        ToPort: 25565
+      Tags:
+      - Key: Name
+        Value: discord-bot-minecraft-ec2-serverless
+    Type: AWS::EC2::SecurityGroup
+  InteractionFunction:
+    Properties:
+      Architectures:
+      - x86_64
+      CodeUri: src/
+      Events:
+        Interaction:
+          Properties:
+            Method: post
+            Path: /interactions
+          Type: Api
+      Handler: app.lambda_handler
+      MemorySize: 1024
+      Policies:
+      - Statement:
+        - Action:
+          - s3:GetObject
+          - s3:PutObject
+          - ec2:StopInstances
+          - ec2:StartInstances
+          - ec2:DescribeInstanceStatus
+          Effect: Allow
+          Resource: '*'
+      Runtime: python3.13
+    Type: AWS::Serverless::Function
+  SamTempBucket:
+    Properties:
+      BucketName: sam-temp-bucket-werv8xia
+    Type: AWS::S3::Bucket
+Transform: AWS::Serverless-2016-10-31
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'discord-bot-minecraft-ec2-serverless
+
+  Sample SAM Template for discord-bot-minecraft-ec2-serverless
+
+  '
+Globals:
+  Function:
+    Environment:
+      Variables:
+        APPLICATION_PUBLIC_KEY: ac717bd98d442a772502bafe4daf5ae81cf80faa132a4ad180b8d914b29b4c28
+        INSTANCE_ID: '!Ref Ec2Instance'
+        OBJECT_KEY: tmp.json
+        REGION: us-west-1
+        S3_BUCKET: '!Ref SamTempBucket'
+    Timeout: 15
+Key: Value
+Outputs:
+  Ec2Instance:
+    Description: Ec2 Instance ARN
+    Value: '!Ref Ec2Instance'
+  FollowUpFunction:
+    Description: Follow Up Lambda Function ARN
+    Value: '!GetAtt FollowUpFunction.Arn'
+  FollowUpFunctionIamRole:
+    Description: Implicit IAM Role created for Follow Up function
+    Value: '!GetAtt FollowUpFunctionRole.Arn'
+  InstanceSecurityGroup:
+    Description: Instance Security Group ARN
+    Value: '!Ref InstanceSecurityGroup'
+  InteractionApi:
+    Description: API Gateway endpoint URL for Prod stage for Interaction function
+    Value: '!Sub https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/interactions'
+  InteractionFunction:
+    Description: Interaction Lambda Function ARN
+    Value: '!GetAtt InteractionFunction.Arn'
+  InteractionFunctionIamRole:
+    Description: Implicit IAM Role created for Interaction function
+    Value: '!GetAtt InteractionFunctionRole.Arn'
+  SamTempBucket:
+    Description: Sam Temp Bucket ARN
+    Value: '!GetAtt SamTempBucket.Arn'
+Resources:
+  Ec2Instance:
+    Properties:
+      ImageId: ami-00142eb1747a493d9
+      InstanceType: t2.small
+      SecurityGroupIds:
+      - '!Ref InstanceSecurityGroup'
+      Tags:
+      - Key: Name
+        Value: discord-bot-minecraft-ec2-serverless
+      UserData:
+        Fn::Base64: '!Sub #!/bin/bash
+
+          sudo dnf update -y
+
+          sudo dnf remove -y docker docker-client docker-client-latest docker-common
+          docker-latest docker-latest-logrotate docker-logrotate docker-engine
+
+          sudo dnf -y install dnf-plugins-core
+
+          sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+          sudo sed -i ''s/$releasever/9/g'' /etc/yum.repos.d/docker-ce.repo
+
+          sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin
+          docker-compose-plugin
+
+          sudo systemctl enable --now docker
+
+          sudo mkdir /mc && sudo cd /mc
+
+          sudo echo $''services:\n  mc:\n    image: itzg/minecraft-server\n    tty:
+          true\n    stdin_open: true\n    ports:\n      - "25565:25565"\n    environment:\n      EULA:
+          "TRUE"\n    volumes:\n      - ./data:/data\n    restart: always'' > ''./docker-compose.yml''
+
+          sudo docker compose -p minecraft-server up -d
+
+          '
+    Type: AWS::EC2::Instance
+  FollowUpFunction:
+    Properties:
+      Architectures:
+      - x86_64
+      CodeUri: src/
+      Events:
+        EC2StateChange:
+          Properties:
+            Pattern:
+              detail:
+                state:
+                - running
+                - stopped
+              detail-type:
+              - EC2 Instance State-change Notification
+              source:
+              - aws.ec2
+          Type: EventBridgeRule
+      Handler: follow_up.lambda_handler
+      Policies:
+      - Statement:
+        - Action:
+          - s3:GetObject
+          - s3:PutObject
+          - s3:DeleteObject
+          - ec2:DescribeInstances
+          Effect: Allow
+          Resource: '*'
+      Runtime: python3.13
+    Type: AWS::Serverless::Function
+  InstanceSecurityGroup:
+    Properties:
+      GroupDescription: Enable SSH access via port 22
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: 22
+        IpProtocol: tcp
+        ToPort: 22
+      - CidrIp: 0.0.0.0/0
+        FromPort: 25565
+        IpProtocol: tcp
+        ToPort: 25565
+      - CidrIp: 0.0.0.0/0
+        FromPort: 25565
+        IpProtocol: udp
+        ToPort: 25565
+      Tags:
+      - Key: Name
+        Value: discord-bot-minecraft-ec2-serverless
+    Type: AWS::EC2::SecurityGroup
+  InteractionFunction:
+    Properties:
+      Architectures:
+      - x86_64
+      CodeUri: src/
+      Events:
+        Interaction:
+          Properties:
+            Method: post
+            Path: /interactions
+          Type: Api
+      Handler: app.lambda_handler
+      MemorySize: 1024
+      Policies:
+      - Statement:
+        - Action:
+          - s3:GetObject
+          - s3:PutObject
+          - ec2:StopInstances
+          - ec2:StartInstances
+          - ec2:DescribeInstanceStatus
+          Effect: Allow
+          Resource: '*'
+      Runtime: python3.13
+    Type: AWS::Serverless::Function
+  SamTempBucket:
+    Properties:
+      BucketName: sam-temp-bucket-42g1xxim
+    Type: AWS::S3::Bucket
+Transform: AWS::Serverless-2016-10-31
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'discord-bot-minecraft-ec2-serverless
+
+  Sample SAM Template for discord-bot-minecraft-ec2-serverless
+
+  '
+Globals:
+  Function:
+    Environment:
+      Variables:
+        APPLICATION_PUBLIC_KEY: ac717bd98d442a772502bafe4daf5ae81cf80faa132a4ad180b8d914b29b4c28
+        INSTANCE_ID: '!Ref Ec2Instance'
+        OBJECT_KEY: tmp.json
+        REGION: us-west-1
+        S3_BUCKET: '!Ref SamTempBucket'
+    Timeout: 15
+Key: Value
+Outputs:
+  Ec2Instance:
+    Description: Ec2 Instance ARN
+    Value: '!Ref Ec2Instance'
+  FollowUpFunction:
+    Description: Follow Up Lambda Function ARN
+    Value: '!GetAtt FollowUpFunction.Arn'
+  FollowUpFunctionIamRole:
+    Description: Implicit IAM Role created for Follow Up function
+    Value: '!GetAtt FollowUpFunctionRole.Arn'
+  InstanceSecurityGroup:
+    Description: Instance Security Group ARN
+    Value: '!Ref InstanceSecurityGroup'
+  InteractionApi:
+    Description: API Gateway endpoint URL for Prod stage for Interaction function
+    Value: '!Sub https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/interactions'
+  InteractionFunction:
+    Description: Interaction Lambda Function ARN
+    Value: '!GetAtt InteractionFunction.Arn'
+  InteractionFunctionIamRole:
+    Description: Implicit IAM Role created for Interaction function
+    Value: '!GetAtt InteractionFunctionRole.Arn'
+  SamTempBucket:
+    Description: Sam Temp Bucket ARN
+    Value: '!GetAtt SamTempBucket.Arn'
+Resources:
+  Ec2Instance:
+    Properties:
+      ImageId: ami-00142eb1747a493d9
+      InstanceType: t2.small
+      SecurityGroupIds:
+      - '!Ref InstanceSecurityGroup'
+      Tags:
+      - Key: Name
+        Value: discord-bot-minecraft-ec2-serverless
+      UserData:
+        Fn::Base64: '!Sub #!/bin/bash
+
+          sudo dnf update -y
+
+          sudo dnf remove -y docker docker-client docker-client-latest docker-common
+          docker-latest docker-latest-logrotate docker-logrotate docker-engine
+
+          sudo dnf -y install dnf-plugins-core
+
+          sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+          sudo sed -i ''s/$releasever/9/g'' /etc/yum.repos.d/docker-ce.repo
+
+          sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin
+          docker-compose-plugin
+
+          sudo systemctl enable --now docker
+
+          sudo mkdir /mc && sudo cd /mc
+
+          sudo echo $''services:\n  mc:\n    image: itzg/minecraft-server\n    tty:
+          true\n    stdin_open: true\n    ports:\n      - "25565:25565"\n    environment:\n      EULA:
+          "TRUE"\n    volumes:\n      - ./data:/data\n    restart: always'' > ''./docker-compose.yml''
+
+          sudo docker compose -p minecraft-server up -d
+
+          '
+    Type: AWS::EC2::Instance
+  FollowUpFunction:
+    Properties:
+      Architectures:
+      - x86_64
+      CodeUri: src/
+      Events:
+        EC2StateChange:
+          Properties:
+            Pattern:
+              detail:
+                state:
+                - running
+                - stopped
+              detail-type:
+              - EC2 Instance State-change Notification
+              source:
+              - aws.ec2
+          Type: EventBridgeRule
+      Handler: follow_up.lambda_handler
+      Policies:
+      - Statement:
+        - Action:
+          - s3:GetObject
+          - s3:PutObject
+          - s3:DeleteObject
+          - ec2:DescribeInstances
+          Effect: Allow
+          Resource: '*'
+      Runtime: python3.13
+    Type: AWS::Serverless::Function
+  InstanceSecurityGroup:
+    Properties:
+      GroupDescription: Enable SSH access via port 22
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: 22
+        IpProtocol: tcp
+        ToPort: 22
+      - CidrIp: 0.0.0.0/0
+        FromPort: 25565
+        IpProtocol: tcp
+        ToPort: 25565
+      - CidrIp: 0.0.0.0/0
+        FromPort: 25565
+        IpProtocol: udp
+        ToPort: 25565
+      Tags:
+      - Key: Name
+        Value: discord-bot-minecraft-ec2-serverless
+    Type: AWS::EC2::SecurityGroup
+  InteractionFunction:
+    Properties:
+      Architectures:
+      - x86_64
+      CodeUri: src/
+      Events:
+        Interaction:
+          Properties:
+            Method: post
+            Path: /interactions
+          Type: Api
+      Handler: app.lambda_handler
+      MemorySize: 1024
+      Policies:
+      - Statement:
+        - Action:
+          - s3:GetObject
+          - s3:PutObject
+          - ec2:StopInstances
+          - ec2:StartInstances
+          - ec2:DescribeInstanceStatus
+          Effect: Allow
+          Resource: '*'
+      Runtime: python3.13
+    Type: AWS::Serverless::Function
+  SamTempBucket:
+    Properties:
+      BucketName: sam-temp-bucket-xk0jalkl
+    Type: AWS::S3::Bucket
+Transform: AWS::Serverless-2016-10-31
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'discord-bot-minecraft-ec2-serverless
+
+  Sample SAM Template for discord-bot-minecraft-ec2-serverless
+
+  '
+Globals:
+  Function:
+    Environment:
+      Variables:
+        APPLICATION_PUBLIC_KEY: ac717bd98d442a772502bafe4daf5ae81cf80faa132a4ad180b8d914b29b4c28
+        INSTANCE_ID: '!Ref Ec2Instance'
+        OBJECT_KEY: tmp.json
+        REGION: us-west-1
+        S3_BUCKET: '!Ref SamTempBucket'
+    Timeout: 15
+Key: Value
+Outputs:
+  Ec2Instance:
+    Description: Ec2 Instance ARN
+    Value: '!Ref Ec2Instance'
+  FollowUpFunction:
+    Description: Follow Up Lambda Function ARN
+    Value: '!GetAtt FollowUpFunction.Arn'
+  FollowUpFunctionIamRole:
+    Description: Implicit IAM Role created for Follow Up function
+    Value: '!GetAtt FollowUpFunctionRole.Arn'
+  InstanceSecurityGroup:
+    Description: Instance Security Group ARN
+    Value: '!Ref InstanceSecurityGroup'
+  InteractionApi:
+    Description: API Gateway endpoint URL for Prod stage for Interaction function
+    Value: '!Sub https://${ServerlessRestApi}.execute-api.${AWS::Region}.${AWS::URLSuffix}/Prod/interactions'
+  InteractionFunction:
+    Description: Interaction Lambda Function ARN
+    Value: '!GetAtt InteractionFunction.Arn'
+  InteractionFunctionIamRole:
+    Description: Implicit IAM Role created for Interaction function
+    Value: '!GetAtt InteractionFunctionRole.Arn'
+  SamTempBucket:
+    Description: Sam Temp Bucket ARN
+    Value: '!GetAtt SamTempBucket.Arn'
+Resources:
+  Ec2Instance:
+    Properties:
+      ImageId: ami-00142eb1747a493d9
+      InstanceType: t2.small
+      SecurityGroupIds:
+      - '!Ref InstanceSecurityGroup'
+      Tags:
+      - Key: Name
+        Value: discord-bot-minecraft-ec2-serverless
+      UserData:
+        Fn::Base64: '!Sub #!/bin/bash
+
+          sudo dnf update -y
+
+          sudo dnf remove -y docker docker-client docker-client-latest docker-common
+          docker-latest docker-latest-logrotate docker-logrotate docker-engine
+
+          sudo dnf -y install dnf-plugins-core
+
+          sudo dnf config-manager --add-repo https://download.docker.com/linux/centos/docker-ce.repo
+
+          sudo sed -i ''s/$releasever/9/g'' /etc/yum.repos.d/docker-ce.repo
+
+          sudo dnf -y install docker-ce docker-ce-cli containerd.io docker-buildx-plugin
+          docker-compose-plugin
+
+          sudo systemctl enable --now docker
+
+          sudo mkdir /mc && sudo cd /mc
+
+          sudo echo $''services:\n  mc:\n    image: itzg/minecraft-server\n    tty:
+          true\n    stdin_open: true\n    ports:\n      - "25565:25565"\n    environment:\n      EULA:
+          "TRUE"\n    volumes:\n      - ./data:/data\n    restart: always'' > ''./docker-compose.yml''
+
+          sudo docker compose -p minecraft-server up -d
+
+          '
+    Type: AWS::EC2::Instance
+  FollowUpFunction:
+    Properties:
+      Architectures:
+      - x86_64
+      CodeUri: src/
+      Events:
+        EC2StateChange:
+          Properties:
+            Pattern:
+              detail:
+                state:
+                - running
+                - stopped
+              detail-type:
+              - EC2 Instance State-change Notification
+              source:
+              - aws.ec2
+          Type: EventBridgeRule
+      Handler: follow_up.lambda_handler
+      Policies:
+      - Statement:
+        - Action:
+          - s3:GetObject
+          - s3:PutObject
+          - s3:DeleteObject
+          - ec2:DescribeInstances
+          Effect: Allow
+          Resource: '*'
+      Runtime: python3.13
+    Type: AWS::Serverless::Function
+  InstanceSecurityGroup:
+    Properties:
+      GroupDescription: Enable SSH access via port 22
+      SecurityGroupIngress:
+      - CidrIp: 0.0.0.0/0
+        FromPort: 22
+        IpProtocol: tcp
+        ToPort: 22
+      - CidrIp: 0.0.0.0/0
+        FromPort: 25565
+        IpProtocol: tcp
+        ToPort: 25565
+      - CidrIp: 0.0.0.0/0
+        FromPort: 25565
+        IpProtocol: udp
+        ToPort: 25565
+      Tags:
+      - Key: Name
+        Value: discord-bot-minecraft-ec2-serverless
+    Type: AWS::EC2::SecurityGroup
+  InteractionFunction:
+    Properties:
+      Architectures:
+      - x86_64
+      CodeUri: src/
+      Events:
+        Interaction:
+          Properties:
+            Method: post
+            Path: /interactions
+          Type: Api
+      Handler: app.lambda_handler
+      MemorySize: 1024
+      Policies:
+      - Statement:
+        - Action:
+          - s3:GetObject
+          - s3:PutObject
+          - ec2:StopInstances
+          - ec2:StartInstances
+          - ec2:DescribeInstanceStatus
+          Effect: Allow
+          Resource: '*'
+      Runtime: python3.13
+    Type: AWS::Serverless::Function
+  SamTempBucket:
+    Properties:
+      BucketName: sam-temp-bucket-napwmp5y
+    Type: AWS::S3::Bucket
+Transform: AWS::Serverless-2016-10-31

@@ -11,7 +11,7 @@ Globals:
     Timeout: 15
     Environment:
         Variables:
-          APPLICATION_PUBLIC_KEY: ac717bd98d442a772502bafe4daf5ae81cf80faa132a4ad180b8d914b29b4c28
+          APPLICATION_PUBLIC_KEY: ''
           S3_BUCKET: !Ref SamTempBucket
           OBJECT_KEY: tmp.json
           INSTANCE_ID: !Ref Ec2Instance
@@ -76,7 +76,18 @@ Resources:
   SamTempBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: sam-temp-bucket-1p78xop6
+      BucketName: !Join
+        - "-"
+        - - "sam-temp-bucket"
+          - !Select
+            - 0
+            - !Split
+              - "-"
+              - !Select
+                - 2
+                - !Split
+                  - "/"
+                  - !Ref "AWS::StackId"
   Ec2Instance:
     Type : AWS::EC2::Instance
     Properties:
@@ -100,7 +111,6 @@ Resources:
              sudo mkdir /mc && sudo cd /mc
              sudo echo $'services:\n  mc:\n    image: itzg/minecraft-server\n    tty: true\n    stdin_open: true\n    ports:\n      - "25565:25565"\n    environment:\n      EULA: "TRUE"\n    volumes:\n      - ./data:/data\n    restart: always' > './docker-compose.yml'
              sudo docker compose -p minecraft-server up -d
-            #  sudo curl -O 'https://raw.githubusercontent.com/yuitof/discord-bot-minecraft-ec2-serverless/refs/heads/main/docker-compose.yml'
   InstanceSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
